@@ -118,6 +118,20 @@ deterministically — no live feed, no quota:
 SACCADE_SENSOR=replay SACCADE_REPLAY_DIR=frames/ python -m saccade
 ```
 
+## Evals — tune the hard part with a number, not vibes
+
+The genuinely hard part is *when to speak up* (Glance's salience judgment). Evals
+make it measurable: a set of labeled scenes (`evals/scenes.json`) and a scorer.
+
+```bash
+SACCADE_GLANCE_BACKEND=gemini GEMINI_API_KEY=... python -m saccade.evals
+```
+
+Prints per-case hits/misses and precision / recall / accuracy. Tweak the Glance
+prompt, re-run, watch the numbers move. Cases use `scene` (text, for the stub)
+or `image` (a file path, for real vision models) — drop labeled frames in and
+score a real model the same way.
+
 ## Tests
 
 ```bash

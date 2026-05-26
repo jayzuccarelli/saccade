@@ -1,0 +1,10 @@
+[
+  {"name": "quiet: person typing at desk", "scene": "person sitting at a desk typing", "expect_escalate": false},
+  {"name": "quiet: empty room", "scene": "an empty living room, nothing happening", "expect_escalate": false},
+  {"name": "opportunity: searching for something", "scene": "person looking around the room, searching for something", "expect_escalate": true},
+  {"name": "opportunity: empty coffee mug", "scene": "person holding a coffee mug that is empty", "expect_escalate": true},
+  {"name": "event: someone at the door", "scene": "a person standing at the front door", "expect_escalate": true},
+  {"name": "quiet: reading a book", "scene": "person sitting on the couch reading a book", "expect_escalate": false},
+  {"name": "risk: pan left on the stove", "scene": "a pan on a lit stove with no one in the kitchen", "expect_escalate": true},
+  {"name": "quiet: pet sleeping", "scene": "a cat sleeping on the sofa", "expect_escalate": false}
+]
