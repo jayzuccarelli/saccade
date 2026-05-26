@@ -16,6 +16,7 @@ class Config:
     rtsp_url: str = os.environ.get("SACCADE_RTSP_URL", "")
     replay_dir: str = os.environ.get("SACCADE_REPLAY_DIR", "frames")
     fps: float = float(os.environ.get("SACCADE_FPS", "1.0"))
+    max_dim: int = int(os.environ.get("SACCADE_MAX_DIM", "768"))  # downscale frames; 0 = off
 
     # Backends: "stub" (no key), "gemini", "openai", "anthropic"
     glance_backend: str = os.environ.get("SACCADE_GLANCE_BACKEND", "stub")

@@ -15,9 +15,10 @@ from saccade.schema import Frame
 
 
 class ReolinkSensor:
-    def __init__(self, rtsp_url: str, fps: float = 1.0):
+    def __init__(self, rtsp_url: str, fps: float = 1.0, max_dim: int = 0):
         self.rtsp_url = rtsp_url
         self.interval = 1.0 / fps
+        self.max_dim = max_dim
 
     async def stream(self):
         import cv2  # lazy: pip install opencv-python-headless
@@ -34,7 +35,12 @@ class ReolinkSensor:
                     continue
                 ok, buf = cv2.imencode(".jpg", frame)
                 if ok:
-                    yield Frame(ts=time.time(), image=buf.tobytes(), mime="image/jpeg")
+                    data = buf.tobytes()
+                    if self.max_dim:
+                        from saccade.imageutil import downscale_jpeg
+
+                        data = downscale_jpeg(data, self.max_dim)
+                    yield Frame(ts=time.time(), image=data, mime="image/jpeg")
                 await asyncio.sleep(self.interval)
         finally:
             cap.release()
