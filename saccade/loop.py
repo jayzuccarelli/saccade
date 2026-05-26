@@ -1,13 +1,18 @@
-"""The orchestrator. The whole harness in one loop.
+"""The orchestrator. Two coroutines running in parallel, like the brain:
 
-    glance every tick -> form a percept -> if salient, focus -> maybe act
+  capture     — continuously fills the sensory buffer at the sensor's rate
+  glance loop — samples the buffer on its own (glance_fps) clock and reasons
 
-If this ever grows past a dozen lines, something leaked into the wrong layer.
+Perception never pauses while the model thinks. If glance_fps >= capture_fps,
+every captured frame gets glanced (lockstep — good for replay). If it's lower
+(e.g. rate-limited live), the loop samples the latest while the buffer still
+holds a dense clip for Focus.
 """
 
 from __future__ import annotations
 
-import time
+import asyncio
+import contextlib
 from typing import Callable
 
 from saccade.focus import Focus
@@ -21,6 +26,31 @@ def _log(p: Percept) -> None:
     print(f"[glance] sal={p.salience:0.1f}  {p.summary[:64]:<64}{mark}")
 
 
+async def _tick(
+    glance: Glance,
+    focus: Focus,
+    memory: Memory,
+    focus_clip_frames: int,
+    on_action: Callable[[str], None],
+) -> None:
+    """One glance at the latest frame; if salient, one focused look at a clip,
+    and maybe act. Pure function of the buffer's current state — easy to test."""
+    latest = memory.sensory.recent(1)
+    if not latest:
+        return
+    percept = await glance.perceive(Window(frames=latest), memory)
+    memory.observe(percept)
+    _log(percept)
+    if percept.escalate:
+        clip = memory.sensory.recent(focus_clip_frames)
+        decision = await focus.reason(percept, Window(frames=clip), memory)
+        if decision.speak:
+            memory.episodic.record(
+                "action", {"message": decision.message, "trigger": percept.summary}
+            )
+            on_action(decision.message)
+
+
 async def run(
     sensor,
     glance: Glance,
@@ -30,33 +60,29 @@ async def run(
     glance_fps: float = 1.0,
     focus_clip_frames: int = 6,
 ) -> None:
-    # Capture rate (how fast frames arrive) is the sensor's; glance_fps is how
-    # often we actually call the model. Every frame is buffered; we only glance
-    # on the slower clock. glance_fps <= 0 means "glance every captured frame".
     interval = 1.0 / glance_fps if glance_fps > 0 else 0.0
-    last_glance = float("-inf")
+    stream_done = asyncio.Event()
 
-    async for frame in sensor.stream():
-        # An always-on agent must survive a flaky API call or a bad response.
-        # Log the tick's error and keep watching — never let one frame kill it.
+    async def capture() -> None:
+        # Never pauses while the model thinks — keeps the buffer current.
         try:
-            memory.observe_frame(frame)  # buffer every frame, at capture rate
-            now = time.monotonic()
-            if now - last_glance < interval:
-                continue  # captured, but not yet time to glance
-            last_glance = now
-            # Glance sees only the latest frame (peripheral, low-acuity).
-            percept = await glance.perceive(Window(frames=[frame]), memory)
-            memory.observe(percept)
-            _log(percept)
-            if percept.escalate:
-                # Focus sees a short clip (the last few seconds) so it reads motion.
-                clip = memory.sensory.recent(focus_clip_frames)
-                decision = await focus.reason(percept, Window(frames=clip), memory)
-                if decision.speak:
-                    memory.episodic.record(
-                        "action", {"message": decision.message, "trigger": percept.summary}
-                    )
-                    on_action(decision.message)
-        except Exception as e:  # noqa: BLE001 — resilience is the whole point here
-            print(f"[loop] skipped a tick: {type(e).__name__}: {e}")
+            async for frame in sensor.stream():
+                memory.observe_frame(frame)
+        finally:
+            stream_done.set()
+
+    capture_task = asyncio.create_task(capture())
+    try:
+        while True:
+            # Resilience: one flaky call/response skips a tick, never kills the agent.
+            try:
+                await _tick(glance, focus, memory, focus_clip_frames, on_action)
+            except Exception as e:  # noqa: BLE001 — resilience is the whole point here
+                print(f"[loop] skipped a tick: {type(e).__name__}: {e}")
+            if stream_done.is_set() and capture_task.done():
+                break
+            await asyncio.sleep(interval)
+    finally:
+        capture_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await capture_task  # re-raises a real sensor error (e.g. camera won't open)

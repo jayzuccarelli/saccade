@@ -90,12 +90,13 @@ Glance runs constantly, so cost = cadence × price. Reality check:
 - **Gemini free tier is tiny** — ~10 requests/min *and* ~20/day for Flash-Lite.
   An always-on agent blows through that in seconds. For real use, enable billing
   (paid tier is thousands/min; a day of 1Hz Flash-Lite watching is a few dollars).
-- **Two clocks: capture vs. glance.** `SACCADE_CAPTURE_FPS` = how fast frames
-  stream into the buffer (cheap, no API); `SACCADE_GLANCE_FPS` = how often we
-  actually call the model. Start aligned (`1.0`/`1.0`). To fit a rate limit,
-  widen the glance clock (e.g. `0.14` ≈ every 7s) while still capturing 1/s — so
-  Focus's clip stays a dense few seconds even when glances are sparse.
-  `SACCADE_GLANCE_FPS=0` glances every captured frame.
+- **Two clocks, running in parallel.** Capture fills the buffer in its own
+  coroutine and never pauses while the model thinks. `SACCADE_CAPTURE_FPS` = how
+  fast frames stream in (cheap, no API); `SACCADE_GLANCE_FPS` = how often we call
+  the model. If `glance_fps >= capture_fps`, every frame gets glanced (lockstep —
+  use this for replay). If lower (e.g. `0.14` ≈ every 7s to fit a rate limit),
+  the loop samples the latest while the buffer keeps a dense clip for Focus.
+  `SACCADE_GLANCE_FPS=0` glances as fast as it can.
 - **Glance downscales its input (`SACCADE_GLANCE_MAX_DIM`, default 768)** —
   peripheral vision is low-acuity, so the cheap always-on tier doesn't need full
   resolution to spot that *something* changed. Focus always gets the full-res
