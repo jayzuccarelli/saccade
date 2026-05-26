@@ -92,6 +92,11 @@ Glance runs constantly, so cost = cadence × price. Reality check:
   (paid tier is thousands/min; a day of 1Hz Flash-Lite watching is a few dollars).
 - **Tune cadence with `SACCADE_FPS`** — `1.0` = once a second (responsive),
   `0.14` ≈ once every 7s (fits free-tier rate limits, laggy).
+- **Glance downscales its input (`SACCADE_GLANCE_MAX_DIM`, default 768)** —
+  peripheral vision is low-acuity, so the cheap always-on tier doesn't need full
+  resolution to spot that *something* changed. Focus always gets the full-res
+  frame, since it reasons carefully and runs rarely. Fewer tokens where it's
+  frequent, full detail where it matters.
 
 **Proposed next step (not yet built): adaptive cadence.** Instead of a fixed
 rate, let Glance emit how soon it should look again — quiet scene → check back in

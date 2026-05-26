@@ -25,11 +25,11 @@ def make_sensor(c: Config):
     if c.sensor == "reolink":
         from saccade.sensors.reolink import ReolinkSensor
 
-        return ReolinkSensor(c.rtsp_url, c.fps, max_dim=c.max_dim)
+        return ReolinkSensor(c.rtsp_url, c.fps)
     if c.sensor == "replay":
         from saccade.sensors.replay import ReplaySensor
 
-        return ReplaySensor(c.replay_dir, c.fps, max_dim=c.max_dim)
+        return ReplaySensor(c.replay_dir, c.fps)
     from saccade.sensors.stub import StubSensor
 
     return StubSensor(c.fps)
@@ -76,7 +76,7 @@ async def snapshot(path: str) -> None:
     mime = "image/png" if path.lower().endswith(".png") else "image/jpeg"
     frame = Frame(ts=time.time(), image=data, mime=mime)
     window = Window(frames=[frame])
-    glance = Glance(make_backend(c.glance_backend, "glance", c))
+    glance = Glance(make_backend(c.glance_backend, "glance", c), max_dim=c.glance_max_dim)
     focus = Focus(make_backend(c.focus_backend, "focus", c))
     memory = Memory(c.episodic_path, c.preferences_path)
 
@@ -92,7 +92,7 @@ async def snapshot(path: str) -> None:
 async def main() -> None:
     c = Config()
     sensor = make_sensor(c)
-    glance = Glance(make_backend(c.glance_backend, "glance", c))
+    glance = Glance(make_backend(c.glance_backend, "glance", c), max_dim=c.glance_max_dim)
     focus = Focus(make_backend(c.focus_backend, "focus", c))
     memory = Memory(c.episodic_path, c.preferences_path)
 

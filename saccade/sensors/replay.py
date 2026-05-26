@@ -17,11 +17,10 @@ from saccade.schema import Frame
 
 
 class ReplaySensor:
-    def __init__(self, folder: str, fps: float = 1.0, loop: bool = False, max_dim: int = 0):
+    def __init__(self, folder: str, fps: float = 1.0, loop: bool = False):
         self.folder = folder
         self.interval = 1.0 / fps
         self.loop = loop
-        self.max_dim = max_dim
 
     def _paths(self) -> list[str]:
         paths: list[str] = []
@@ -37,11 +36,6 @@ class ReplaySensor:
         for p in seq:
             with open(p, "rb") as f:
                 data = f.read()
-            is_png = p.lower().endswith(".png")
-            if not is_png and self.max_dim:
-                from saccade.imageutil import downscale_jpeg
-
-                data = downscale_jpeg(data, self.max_dim)
-            mime = "image/png" if is_png else "image/jpeg"
+            mime = "image/png" if p.lower().endswith(".png") else "image/jpeg"
             yield Frame(ts=time.time(), image=data, mime=mime, meta={"path": p})
             await asyncio.sleep(self.interval)

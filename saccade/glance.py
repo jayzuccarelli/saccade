@@ -7,7 +7,10 @@ decides `escalate` itself, so it won't keep re-flagging the same ongoing thing.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from saccade.backends.base import Backend
+from saccade.imageutil import downscale_jpeg
 from saccade.memory import Memory
 from saccade.schema import PERCEPT_SCHEMA, Percept, Window, percept_from
 
@@ -30,10 +33,21 @@ when something new, useful, or important appears."""
 
 
 class Glance:
-    def __init__(self, backend: Backend):
+    def __init__(self, backend: Backend, max_dim: int = 0):
         self.backend = backend
+        self.max_dim = max_dim  # peripheral vision is low-acuity: shrink to save tokens
+
+    def _downscaled(self, window: Window) -> list:
+        if not self.max_dim:
+            return window.frames
+        return [
+            replace(f, image=downscale_jpeg(f.image, self.max_dim))
+            if f.image and f.mime == "image/jpeg"
+            else f
+            for f in window.frames
+        ]
 
     async def perceive(self, window: Window, memory: Memory) -> Percept:
         prompt = PROMPT.format(recent=memory.working.summary())
-        raw = await self.backend.complete(prompt, window.frames, schema=PERCEPT_SCHEMA)
+        raw = await self.backend.complete(prompt, self._downscaled(window), schema=PERCEPT_SCHEMA)
         return percept_from(raw, window.ts)
