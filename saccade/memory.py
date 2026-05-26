@@ -1,12 +1,13 @@
-"""Three memory stores, defined now so there's no migration later.
+"""Memory stores, mirroring the canonical hierarchy (sensory -> working ->
+long-term), defined now so there's no migration later.
 
-- working   : volatile ring buffer of recent percepts. "what's happening now?"
-- episodic  : durable append-only event log.            "what happened?"
-- semantic  : durable, human-readable user model.        "what's true about you?"
+- sensory   : volatile ring buffer of recent raw FRAMES. "what did the eye just see?"
+- working   : volatile ring buffer of recent percepts.    "what's happening now?"
+- episodic  : durable append-only event log.              "what happened?"
+- semantic  : durable, human-readable user model.          "what's true about you?"
 
-All three exist from day one. Only working is populated automatically in v0;
-episodic logs actions; semantic is a hand-edited file. The *consolidation*
-(learning episodic -> semantic) is deferred — that's behavior, not structure.
+Sensory exists so Focus can be handed a short *clip* (motion), not one freeze
+frame. Consolidation (learning episodic -> semantic) is still deferred behavior.
 """
 
 from __future__ import annotations
@@ -16,7 +17,21 @@ import os
 import time
 from collections import deque
 
-from saccade.schema import Percept
+from saccade.schema import Frame, Percept
+
+
+class SensoryMemory:
+    """Raw recent frames, FIFO. Held just long enough to give Focus a clip of the
+    last few seconds so it perceives motion, not a still."""
+
+    def __init__(self, maxlen: int = 16):
+        self.buf: deque[Frame] = deque(maxlen=maxlen)
+
+    def observe(self, frame: Frame) -> None:
+        self.buf.append(frame)
+
+    def recent(self, n: int) -> list[Frame]:
+        return list(self.buf)[-n:]
 
 
 class WorkingMemory:
@@ -58,10 +73,20 @@ class SemanticMemory:
 
 
 class Memory:
-    def __init__(self, episodic_path: str, preferences_path: str):
-        self.working = WorkingMemory()
+    def __init__(
+        self,
+        episodic_path: str,
+        preferences_path: str,
+        sensory_n: int = 16,
+        working_n: int = 30,
+    ):
+        self.sensory = SensoryMemory(sensory_n)
+        self.working = WorkingMemory(working_n)
         self.episodic = EpisodicMemory(episodic_path)
         self.semantic = SemanticMemory(preferences_path)
 
     def observe(self, percept: Percept) -> None:
         self.working.observe(percept)
+
+    def observe_frame(self, frame: Frame) -> None:
+        self.sensory.observe(frame)

@@ -26,17 +26,21 @@ async def run(
     focus: Focus,
     memory: Memory,
     on_action: Callable[[str], None] = print,
+    focus_clip_frames: int = 6,
 ) -> None:
     async for frame in sensor.stream():
         # An always-on agent must survive a flaky API call or a bad response.
         # Log the tick's error and keep watching — never let one frame kill it.
         try:
-            window = Window(frames=[frame])
-            percept = await glance.perceive(window, memory)
+            memory.observe_frame(frame)
+            # Glance sees only the latest frame (peripheral, low-acuity).
+            percept = await glance.perceive(Window(frames=[frame]), memory)
             memory.observe(percept)
             _log(percept)
             if percept.escalate:
-                decision = await focus.reason(percept, window, memory)
+                # Focus sees a short clip (the last few seconds) so it reads motion.
+                clip = memory.sensory.recent(focus_clip_frames)
+                decision = await focus.reason(percept, Window(frames=clip), memory)
                 if decision.speak:
                     memory.episodic.record(
                         "action", {"message": decision.message, "trigger": percept.summary}

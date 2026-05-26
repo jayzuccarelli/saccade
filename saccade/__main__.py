@@ -94,13 +94,15 @@ async def main() -> None:
     sensor = make_sensor(c)
     glance = Glance(make_backend(c.glance_backend, "glance", c), max_dim=c.glance_max_dim)
     focus = Focus(make_backend(c.focus_backend, "focus", c))
-    memory = Memory(c.episodic_path, c.preferences_path)
+    memory = Memory(
+        c.episodic_path, c.preferences_path, sensory_n=c.sensory_buffer, working_n=c.working_memory
+    )
 
     def speak(msg: str) -> None:
         print(f"\n    \033[1m\033[96m💬  {msg}\033[0m\n")
 
     print(f"saccade v0 — sensor={c.sensor} glance={c.glance_backend} focus={c.focus_backend}\n")
-    await looplib.run(sensor, glance, focus, memory, on_action=speak)
+    await looplib.run(sensor, glance, focus, memory, on_action=speak, focus_clip_frames=c.focus_clip_frames)
 
 
 if __name__ == "__main__":

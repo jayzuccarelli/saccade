@@ -20,6 +20,11 @@ class Config:
     # always gets full resolution (it reasons carefully and runs rarely). 0 = off.
     glance_max_dim: int = int(os.environ.get("SACCADE_GLANCE_MAX_DIM", "768"))
 
+    # Memory buffer sizes + how many recent frames Focus sees as a clip.
+    sensory_buffer: int = int(os.environ.get("SACCADE_SENSORY_BUFFER", "16"))
+    working_memory: int = int(os.environ.get("SACCADE_WORKING_MEMORY", "30"))
+    focus_clip_frames: int = int(os.environ.get("SACCADE_FOCUS_CLIP_FRAMES", "6"))
+
     # Backends: "stub" (no key), "gemini", "openai", "anthropic"
     glance_backend: str = os.environ.get("SACCADE_GLANCE_BACKEND", "stub")
     focus_backend: str = os.environ.get("SACCADE_FOCUS_BACKEND", "stub")

@@ -2,8 +2,16 @@
 
 import json
 
-from saccade.memory import EpisodicMemory, SemanticMemory, WorkingMemory
-from saccade.schema import Percept
+from saccade.memory import EpisodicMemory, SemanticMemory, SensoryMemory, WorkingMemory
+from saccade.schema import Frame, Percept
+
+
+def test_sensory_is_a_bounded_frame_ring():
+    s = SensoryMemory(maxlen=3)
+    for i in range(5):
+        s.observe(Frame(ts=float(i)))
+    assert [int(f.ts) for f in s.recent(3)] == [2, 3, 4]  # last 3, oldest dropped
+    assert len(s.recent(10)) == 3  # never more than it holds
 
 
 def test_working_is_a_bounded_ring():
