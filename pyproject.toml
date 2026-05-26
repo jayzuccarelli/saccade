@@ -1,0 +1,19 @@
+[project]
+name = "saccade"
+version = "0.0.1"
+description = "An open harness for proactive ambient agents — peripheral Glance, focused Focus."
+requires-python = ">=3.10"
+dependencies = []  # core runs on the stdlib alone
+
+[project.optional-dependencies]
+gemini = ["google-genai"]
+openai = ["openai"]
+anthropic = ["anthropic"]
+camera = ["opencv-python-headless"]
+
+[project.scripts]
+saccade = "saccade.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
