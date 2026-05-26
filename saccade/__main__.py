@@ -26,6 +26,10 @@ def make_sensor(c: Config):
         from saccade.sensors.reolink import ReolinkSensor
 
         return ReolinkSensor(c.rtsp_url, c.fps)
+    if c.sensor == "replay":
+        from saccade.sensors.replay import ReplaySensor
+
+        return ReplaySensor(c.replay_dir, c.fps)
     from saccade.sensors.stub import StubSensor
 
     return StubSensor(c.fps)

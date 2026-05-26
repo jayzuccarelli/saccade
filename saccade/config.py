@@ -11,9 +11,10 @@ from dataclasses import dataclass
 
 @dataclass
 class Config:
-    # Sensor: "stub" (scripted, no hardware) or "reolink" (RTSP)
+    # Sensor: "stub" (scripted), "reolink" (RTSP), or "replay" (folder of images)
     sensor: str = os.environ.get("SACCADE_SENSOR", "stub")
     rtsp_url: str = os.environ.get("SACCADE_RTSP_URL", "")
+    replay_dir: str = os.environ.get("SACCADE_REPLAY_DIR", "frames")
     fps: float = float(os.environ.get("SACCADE_FPS", "1.0"))
 
     # Backends: "stub" (no key), "gemini", "openai", "anthropic"

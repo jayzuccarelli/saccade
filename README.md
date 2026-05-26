@@ -83,6 +83,31 @@ SACCADE_SENSOR=reolink \
 | `memory.py` | working / episodic / semantic |
 | `loop.py` | the orchestrator |
 
+## Cost & cadence
+
+Glance runs constantly, so cost = cadence × price. Reality check:
+
+- **Gemini free tier is tiny** — ~10 requests/min *and* ~20/day for Flash-Lite.
+  An always-on agent blows through that in seconds. For real use, enable billing
+  (paid tier is thousands/min; a day of 1Hz Flash-Lite watching is a few dollars).
+- **Tune cadence with `SACCADE_FPS`** — `1.0` = once a second (responsive),
+  `0.14` ≈ once every 7s (fits free-tier rate limits, laggy).
+
+**Proposed next step (not yet built): adaptive cadence.** Instead of a fixed
+rate, let Glance emit how soon it should look again — quiet scene → check back in
+seconds; something happening → check every tick. This cuts total calls (and cost)
+without any hand-coded rules, since the *model* decides the interval. Lands well
+once we're past the free tier. See `loop.py`.
+
+## Develop without a camera or API
+
+`ReplaySensor` plays back a folder of images, so you can iterate on behavior
+deterministically — no live feed, no quota:
+
+```bash
+SACCADE_SENSOR=replay SACCADE_REPLAY_DIR=frames/ python -m saccade
+```
+
 ## Tests
 
 ```bash
