@@ -32,6 +32,15 @@ def test_episodic_appends_jsonl(tmp_path):
     assert json.loads(lines[0])["message"] == "m"
 
 
+def test_episodic_recent_recall_and_kind_filter(tmp_path):
+    e = EpisodicMemory(str(tmp_path / "ep.jsonl"))
+    e.record("action", {"message": "hello"})
+    e.record("note", {"message": "ignore me"})
+    e.record("action", {"message": "again"})
+    actions = e.recent(5, kind="action")
+    assert [a["message"] for a in actions] == ["hello", "again"]  # notes filtered out
+
+
 def test_semantic_reads_file_or_default(tmp_path):
     path = tmp_path / "prefs.md"
     path.write_text("be quiet during focus")

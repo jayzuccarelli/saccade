@@ -49,14 +49,22 @@ class WorkingMemory:
 
 
 class EpisodicMemory:
-    """Append-only JSONL log. Queryable by time later; for now, a faithful record."""
+    """Append-only JSONL log + an in-RAM tail for fast recall (e.g. "what did I
+    just say?"). The file is the durable record; the tail is for live decisions."""
 
-    def __init__(self, path: str = "episodic.jsonl"):
+    def __init__(self, path: str = "episodic.jsonl", tail: int = 50):
         self.path = path
+        self.tail: deque[dict] = deque(maxlen=tail)
 
     def record(self, kind: str, payload: dict) -> None:
+        entry = {"ts": time.time(), "kind": kind, **payload}
+        self.tail.append(entry)
         with open(self.path, "a") as f:
-            f.write(json.dumps({"ts": time.time(), "kind": kind, **payload}) + "\n")
+            f.write(json.dumps(entry) + "\n")
+
+    def recent(self, n: int = 5, kind: str | None = None) -> list[dict]:
+        items = [e for e in self.tail if kind is None or e["kind"] == kind]
+        return items[-n:]
 
 
 class SemanticMemory:
