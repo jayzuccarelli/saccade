@@ -15,7 +15,11 @@ class Config:
     sensor: str = os.environ.get("SACCADE_SENSOR", "stub")
     rtsp_url: str = os.environ.get("SACCADE_RTSP_URL", "")
     replay_dir: str = os.environ.get("SACCADE_REPLAY_DIR", "frames")
-    fps: float = float(os.environ.get("SACCADE_FPS", "1.0"))
+    # Two clocks: capture = how fast frames stream into the buffer; glance = how
+    # often we actually call the model. Start aligned (1/1); widen glance (e.g.
+    # 0.14 ≈ every 7s) to fit a rate limit while still capturing a dense clip.
+    capture_fps: float = float(os.environ.get("SACCADE_CAPTURE_FPS", "1.0"))
+    glance_fps: float = float(os.environ.get("SACCADE_GLANCE_FPS", "1.0"))
     # Glance downscales its input (peripheral = low acuity, saves tokens). Focus
     # always gets full resolution (it reasons carefully and runs rarely). 0 = off.
     glance_max_dim: int = int(os.environ.get("SACCADE_GLANCE_MAX_DIM", "768"))

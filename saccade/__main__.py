@@ -25,14 +25,14 @@ def make_sensor(c: Config):
     if c.sensor == "reolink":
         from saccade.sensors.reolink import ReolinkSensor
 
-        return ReolinkSensor(c.rtsp_url, c.fps)
+        return ReolinkSensor(c.rtsp_url, c.capture_fps)
     if c.sensor == "replay":
         from saccade.sensors.replay import ReplaySensor
 
-        return ReplaySensor(c.replay_dir, c.fps)
+        return ReplaySensor(c.replay_dir, c.capture_fps)
     from saccade.sensors.stub import StubSensor
 
-    return StubSensor(c.fps)
+    return StubSensor(c.capture_fps)
 
 
 # Sensible per-provider defaults for each tier. Glance = cheap/fast, Focus = smart.
@@ -102,7 +102,7 @@ async def main() -> None:
         print(f"\n    \033[1m\033[96m💬  {msg}\033[0m\n")
 
     print(f"saccade v0 — sensor={c.sensor} glance={c.glance_backend} focus={c.focus_backend}\n")
-    await looplib.run(sensor, glance, focus, memory, on_action=speak, focus_clip_frames=c.focus_clip_frames)
+    await looplib.run(sensor, glance, focus, memory, on_action=speak, glance_fps=c.glance_fps, focus_clip_frames=c.focus_clip_frames)
 
 
 if __name__ == "__main__":

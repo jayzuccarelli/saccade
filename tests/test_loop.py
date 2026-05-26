@@ -26,7 +26,8 @@ class _BoomBackend:
 
 def _run(sensor, glance, focus, memory):
     actions: list[str] = []
-    asyncio.run(looplib.run(sensor, glance, focus, memory, on_action=actions.append))
+    # glance_fps=0 -> glance every captured frame (deterministic for tests)
+    asyncio.run(looplib.run(sensor, glance, focus, memory, on_action=actions.append, glance_fps=0))
     return actions
 
 
@@ -56,7 +57,9 @@ def test_focus_receives_a_clip_not_one_frame(tmp_path):
     cap = _CapturingFocusBackend()
     focus = Focus(cap)
     memory = Memory(str(tmp_path / "ep.jsonl"), str(tmp_path / "prefs.md"))
-    asyncio.run(looplib.run(sensor, glance, focus, memory, on_action=[].append, focus_clip_frames=3))
+    asyncio.run(
+        looplib.run(sensor, glance, focus, memory, on_action=[].append, glance_fps=0, focus_clip_frames=3)
+    )
     assert cap.n_frames == 3  # got the last 3 buffered frames, not just 1
 
 
