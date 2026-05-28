@@ -67,6 +67,16 @@ def make_backend(kind: str, role: str, c: Config):
     return StubBackend(role=role)
 
 
+def make_speaker(c: Config):
+    if c.speaker == "gemini_tts":
+        from saccade.speakers.gemini_tts import GeminiTTSSpeaker
+
+        return GeminiTTSSpeaker(c.tts_model, c.tts_voice, c.tts_dir, c.play_cmd)
+    from saccade.speakers.print import PrintSpeaker
+
+    return PrintSpeaker()
+
+
 async def snapshot(path: str) -> None:
     """Run one image through Glance (and Focus if it escalates). The fastest way
     to see a real Percept the moment a key is wired: `python -m saccade snapshot pic.jpg`."""
@@ -98,11 +108,16 @@ async def main() -> None:
         c.episodic_path, c.preferences_path, sensory_n=c.sensory_buffer, working_n=c.working_memory
     )
 
-    def speak(msg: str) -> None:
-        print(f"\n    \033[1m\033[96m💬  {msg}\033[0m\n")
+    speaker = make_speaker(c)
 
-    print(f"saccade v0 — sensor={c.sensor} glance={c.glance_backend} focus={c.focus_backend}\n")
-    await looplib.run(sensor, glance, focus, memory, on_action=speak, glance_fps=c.glance_fps, focus_clip_frames=c.focus_clip_frames)
+    print(
+        f"saccade v0 — sensor={c.sensor} glance={c.glance_backend} "
+        f"focus={c.focus_backend} speaker={c.speaker}\n"
+    )
+    await looplib.run(
+        sensor, glance, focus, memory, on_action=speaker.say,
+        glance_fps=c.glance_fps, focus_clip_frames=c.focus_clip_frames,
+    )
 
 
 if __name__ == "__main__":

@@ -38,3 +38,12 @@ class Config:
 
     episodic_path: str = os.environ.get("SACCADE_EPISODIC", "episodic.jsonl")
     preferences_path: str = os.environ.get("SACCADE_PREFS", "preferences.md")
+
+    # Speaker (output): "print" (default, no audio) or "gemini_tts" (synthesize).
+    speaker: str = os.environ.get("SACCADE_SPEAKER", "print")
+    tts_model: str = os.environ.get("SACCADE_TTS_MODEL", "gemini-2.5-flash-preview-tts")
+    tts_voice: str = os.environ.get("SACCADE_TTS_VOICE", "Kore")
+    tts_dir: str = os.environ.get("SACCADE_TTS_DIR", "utterances")
+    # A command that takes a wav path and plays it (aplay/afplay/a push wrapper).
+    # Empty = synthesize and save only (the watching box may have no audio out).
+    play_cmd: str = os.environ.get("SACCADE_PLAY_CMD", "")

@@ -3,3 +3,6 @@ __pycache__/
 episodic.jsonl
 .venv/
 *.egg-info/
+
+# synthesized voice clips
+utterances/

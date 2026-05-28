@@ -78,10 +78,28 @@ SACCADE_SENSOR=reolink \
 | `schema.py` | the contracts: Frame, Window, Percept, Decision |
 | `sensors/` | input streams — `stub`, `reolink` (Protocol in `base.py`) |
 | `backends/` | swappable models — `stub`, `gemini`, `openai`, `anthropic` (the only files that touch a model SDK) |
+| `speakers/` | swappable output — `print` (default), `gemini_tts` (synthesize to wav) |
 | `glance.py` | cheap peripheral perceiver → Percept |
 | `focus.py` | on-demand deep reasoner → Decision |
 | `memory.py` | working / episodic / semantic |
 | `loop.py` | the orchestrator |
+
+## Voice (output is swappable too)
+
+When Focus decides to speak, the message goes to a `Speaker`. Default is
+`print` (no audio, no key). Set `SACCADE_SPEAKER=gemini_tts` to synthesize the
+line to a wav with Gemini TTS:
+
+```bash
+SACCADE_SPEAKER=gemini_tts GEMINI_API_KEY=... python -m saccade
+```
+
+The box that *watches* often has no audio out, so by default the speaker just
+writes the clip (`SACCADE_TTS_DIR`, default `utterances/`) and prints where.
+Point `SACCADE_PLAY_CMD` at anything that takes a file path to actually play it
+— `aplay`, `afplay`, or a wrapper that pushes to a speaker. `SACCADE_TTS_VOICE`
+picks the voice (default `Kore`). Adding a new output (a media player, the
+camera's own speaker) = one `Speaker` class; nothing else changes.
 
 ## Cost & cadence
 

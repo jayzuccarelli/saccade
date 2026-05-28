@@ -13,7 +13,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from typing import Callable
+import inspect
+from typing import Awaitable, Callable, Union
+
+# on_action may be sync (print) or async (a Speaker.say) — the loop handles both.
+Action = Callable[[str], Union[None, Awaitable[None]]]
 
 from saccade.focus import Focus
 from saccade.glance import Glance
@@ -31,7 +35,7 @@ async def _tick(
     focus: Focus,
     memory: Memory,
     focus_clip_frames: int,
-    on_action: Callable[[str], None],
+    on_action: Action,
 ) -> None:
     """One glance at the latest frame; if salient, one focused look at a clip,
     and maybe act. Pure function of the buffer's current state — easy to test."""
@@ -48,7 +52,9 @@ async def _tick(
             memory.episodic.record(
                 "action", {"message": decision.message, "trigger": percept.summary}
             )
-            on_action(decision.message)
+            result = on_action(decision.message)
+            if inspect.isawaitable(result):
+                await result
 
 
 async def run(
@@ -56,7 +62,7 @@ async def run(
     glance: Glance,
     focus: Focus,
     memory: Memory,
-    on_action: Callable[[str], None] = print,
+    on_action: Action = print,
     glance_fps: float = 1.0,
     focus_clip_frames: int = 6,
 ) -> None:
