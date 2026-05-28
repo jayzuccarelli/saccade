@@ -37,14 +37,18 @@ then decide):
 
 
 class Focus:
-    def __init__(self, backend: Backend):
+    def __init__(self, backend: Backend, recent_said_window_s: float = 180.0):
         self.backend = backend
+        self.window_s = recent_said_window_s
 
     def _recent_said(self, memory: Memory) -> str:
-        actions = memory.episodic.recent(5, kind="action")
+        now = time.time()
+        actions = [
+            a for a in memory.episodic.recent(5, kind="action")
+            if now - a["ts"] <= self.window_s
+        ]
         if not actions:
             return "(you haven't said anything recently)"
-        now = time.time()
         return "\n".join(
             f'- {int(now - a["ts"])}s ago: "{a.get("message", "")}"' for a in actions
         )

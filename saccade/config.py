@@ -38,6 +38,10 @@ class Config:
 
     episodic_path: str = os.environ.get("SACCADE_EPISODIC", "episodic.jsonl")
     preferences_path: str = os.environ.get("SACCADE_PREFS", "preferences.md")
+    # How far back Focus treats its own past utterances as "recent" (the anti-nag
+    # window). Older lines drop out, so a fresh run isn't muted by what it said in
+    # a prior session — episodic is on disk and persists across runs. Seconds.
+    recent_said_window_s: float = float(os.environ.get("SACCADE_RECENT_SAID_WINDOW", "180"))
 
     # Speaker (output): "print" (default), "gemini_tts" (synthesize to wav), or
     # "home_assistant" (synthesize + play on a media_player via HA).

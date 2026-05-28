@@ -95,7 +95,7 @@ async def snapshot(path: str) -> None:
     frame = Frame(ts=time.time(), image=data, mime=mime)
     window = Window(frames=[frame])
     glance = Glance(make_backend(c.glance_backend, "glance", c), max_dim=c.glance_max_dim)
-    focus = Focus(make_backend(c.focus_backend, "focus", c))
+    focus = Focus(make_backend(c.focus_backend, "focus", c), c.recent_said_window_s)
     memory = Memory(c.episodic_path, c.preferences_path)
 
     percept = await glance.perceive(window, memory)
@@ -111,7 +111,7 @@ async def main() -> None:
     c = Config()
     sensor = make_sensor(c)
     glance = Glance(make_backend(c.glance_backend, "glance", c), max_dim=c.glance_max_dim)
-    focus = Focus(make_backend(c.focus_backend, "focus", c))
+    focus = Focus(make_backend(c.focus_backend, "focus", c), c.recent_said_window_s)
     memory = Memory(
         c.episodic_path, c.preferences_path, sensory_n=c.sensory_buffer, working_n=c.working_memory
     )
