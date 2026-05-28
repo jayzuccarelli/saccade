@@ -46,7 +46,9 @@ class GeminiTTSSpeaker:
             )
         return self._client
 
-    async def say(self, text: str) -> None:
+    async def synthesize(self, text: str) -> Path:
+        """Synthesize `text` to a wav and return its path. Reused by speakers that
+        play the audio elsewhere (e.g. HomeAssistantSpeaker)."""
         from google.genai import types
 
         client = self._client_lazy()
@@ -69,9 +71,11 @@ class GeminiTTSSpeaker:
             w.setsampwidth(_SAMPLE_WIDTH)
             w.setframerate(_RATE)
             w.writeframes(pcm)
+        return path
 
+    async def say(self, text: str) -> None:
+        path = await self.synthesize(text)
         print(f"\n    \033[1m\033[96m💬  {text}\033[0m   🔊 {path}\n")
-
         if self.play_cmd:
             proc = await asyncio.create_subprocess_exec(*self.play_cmd.split(), str(path))
             await proc.wait()

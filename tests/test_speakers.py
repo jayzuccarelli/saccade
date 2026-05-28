@@ -11,8 +11,11 @@ from saccade.glance import Glance
 from saccade.memory import Memory
 from saccade.backends.stub import StubBackend
 from saccade.schema import Frame
+import urllib.request
+
 from saccade.speakers.print import PrintSpeaker
 from saccade.speakers.gemini_tts import GeminiTTSSpeaker
+from saccade.speakers.home_assistant import HomeAssistantSpeaker, _lan_ip
 
 
 def _mem(tmp_path):
@@ -72,3 +75,45 @@ def test_gemini_tts_writes_a_wav(tmp_path):
         assert w.getnframes() == len(pcm) // 2
     # the line we asked for actually reached the model
     assert fake_models.kwargs["contents"] == "there is someone behind the plants"
+
+
+class _FakeTTS:
+    """Stands in for GeminiTTSSpeaker: writes a wav, returns its path."""
+
+    def __init__(self, out_dir):
+        self.out_dir = out_dir
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+    async def synthesize(self, text):
+        path = self.out_dir / "clip.wav"
+        with wave.open(str(path), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(24000)
+            w.writeframes(b"\x00\x01" * 100)
+        return path
+
+
+def test_ha_speaker_serves_clip_and_posts_play_media(tmp_path):
+    tts = _FakeTTS(tmp_path / "utt")
+    spk = HomeAssistantSpeaker(
+        tts, "http://ha.local:8123", "tok", "media_player.den",
+        serve_host="127.0.0.1", serve_port=0,  # ephemeral — no port collision
+    )
+
+    posted = {}
+    spk._play_media = lambda url: posted.setdefault("url", url)  # no real HA call
+
+    asyncio.run(spk.say("dinner is ready"))
+
+    # play_media got a URL pointing at our own server + the synthesized clip
+    assert posted["url"].startswith("http://127.0.0.1:") and posted["url"].endswith("/clip.wav")
+    # and that URL is actually serveable — the file is reachable over HTTP
+    body = urllib.request.urlopen(posted["url"], timeout=5).read()
+    assert body.startswith(b"RIFF") and body.endswith(b"\x00\x01" * 100)  # wav with our pcm
+    spk._server.shutdown()
+
+
+def test_lan_ip_is_an_address():
+    ip = _lan_ip()
+    assert ip.count(".") == 3 and all(p.isdigit() for p in ip.split("."))

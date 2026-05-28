@@ -39,7 +39,8 @@ class Config:
     episodic_path: str = os.environ.get("SACCADE_EPISODIC", "episodic.jsonl")
     preferences_path: str = os.environ.get("SACCADE_PREFS", "preferences.md")
 
-    # Speaker (output): "print" (default, no audio) or "gemini_tts" (synthesize).
+    # Speaker (output): "print" (default), "gemini_tts" (synthesize to wav), or
+    # "home_assistant" (synthesize + play on a media_player via HA).
     speaker: str = os.environ.get("SACCADE_SPEAKER", "print")
     tts_model: str = os.environ.get("SACCADE_TTS_MODEL", "gemini-2.5-flash-preview-tts")
     tts_voice: str = os.environ.get("SACCADE_TTS_VOICE", "Kore")
@@ -47,3 +48,11 @@ class Config:
     # A command that takes a wav path and plays it (aplay/afplay/a push wrapper).
     # Empty = synthesize and save only (the watching box may have no audio out).
     play_cmd: str = os.environ.get("SACCADE_PLAY_CMD", "")
+
+    # home_assistant speaker: play the clip on a media_player. saccade serves the
+    # audio itself, so HA just fetches serve_host:serve_port — no HA www needed.
+    ha_url: str = os.environ.get("SACCADE_HA_URL", "http://localhost:8123")
+    ha_token: str = os.environ.get("SACCADE_HA_TOKEN", "")
+    ha_entity: str = os.environ.get("SACCADE_HA_ENTITY", "")
+    serve_host: str = os.environ.get("SACCADE_SERVE_HOST", "")  # blank = auto-detect LAN IP
+    serve_port: int = int(os.environ.get("SACCADE_SERVE_PORT", "8189"))

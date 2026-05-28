@@ -72,6 +72,14 @@ def make_speaker(c: Config):
         from saccade.speakers.gemini_tts import GeminiTTSSpeaker
 
         return GeminiTTSSpeaker(c.tts_model, c.tts_voice, c.tts_dir, c.play_cmd)
+    if c.speaker == "home_assistant":
+        from saccade.speakers.gemini_tts import GeminiTTSSpeaker
+        from saccade.speakers.home_assistant import HomeAssistantSpeaker
+
+        tts = GeminiTTSSpeaker(c.tts_model, c.tts_voice, c.tts_dir)
+        return HomeAssistantSpeaker(
+            tts, c.ha_url, c.ha_token, c.ha_entity, c.serve_host, c.serve_port
+        )
     from saccade.speakers.print import PrintSpeaker
 
     return PrintSpeaker()
