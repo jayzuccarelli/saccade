@@ -6,3 +6,6 @@ episodic.jsonl
 
 # synthesized voice clips
 utterances/
+
+# secrets + local config (copy .env.example)
+.env

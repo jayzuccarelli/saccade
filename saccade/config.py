@@ -9,11 +9,64 @@ import os
 from dataclasses import dataclass
 
 
+def _apply_dotenv(path: str) -> dict[str, str]:
+    """Parse a KEY=VALUE file and set any key not already in the environment — the
+    real environment always wins, like every other dotenv. Returns what it parsed.
+    Stdlib only; no python-dotenv dependency."""
+    parsed: dict[str, str] = {}
+    try:
+        with open(path) as f:
+            lines = f.readlines()
+    except OSError:
+        return parsed
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :]
+        if "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key, val = key.strip(), val.strip()
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in "\"'":
+            val = val[1:-1]  # unquote
+        parsed[key] = val
+        os.environ.setdefault(key, val)
+    return parsed
+
+
+def _autoload_dotenv() -> None:
+    """Load the first .env found: $SACCADE_ENV_FILE, then ./.env, then the repo
+    root. This is what kills the launcher script — `python -m saccade` just runs,
+    with secrets in a gitignored .env instead of a hand-run shell file."""
+    candidates = []
+    if explicit := os.environ.get("SACCADE_ENV_FILE"):
+        candidates.append(explicit)
+    candidates.append(os.path.join(os.getcwd(), ".env"))
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    candidates.append(os.path.join(repo_root, ".env"))
+    for path in candidates:
+        if os.path.isfile(path):
+            _apply_dotenv(path)
+            return
+
+
+_autoload_dotenv()  # before the dataclass: its field defaults read os.environ
+
+
 @dataclass
 class Config:
     # Sensor: "stub" (scripted), "reolink" (RTSP), or "replay" (folder of images)
     sensor: str = os.environ.get("SACCADE_SENSOR", "stub")
     rtsp_url: str = os.environ.get("SACCADE_RTSP_URL", "")
+    # Or give the parts and let saccade assemble + URL-encode the URL — so a
+    # password with @ : / # symbols can't break it and creds stay out of shell
+    # history. Used only when SACCADE_RTSP_URL is empty (see __post_init__).
+    rtsp_user: str = os.environ.get("SACCADE_RTSP_USER", "admin")
+    rtsp_password: str = os.environ.get("SACCADE_RTSP_PASSWORD", "")
+    rtsp_host: str = os.environ.get("SACCADE_RTSP_HOST", "")  # host or host:port
+    rtsp_path: str = os.environ.get("SACCADE_RTSP_PATH", "/h264Preview_01_sub")
     replay_dir: str = os.environ.get("SACCADE_REPLAY_DIR", "frames")
     # Two clocks: capture = how fast frames stream into the buffer; glance = how
     # often we actually call the model. Start aligned (1/1); widen glance (e.g.
@@ -60,3 +113,12 @@ class Config:
     ha_entity: str = os.environ.get("SACCADE_HA_ENTITY", "")
     serve_host: str = os.environ.get("SACCADE_SERVE_HOST", "")  # blank = auto-detect LAN IP
     serve_port: int = int(os.environ.get("SACCADE_SERVE_PORT", "8189"))
+
+    def __post_init__(self) -> None:
+        if not self.rtsp_url and self.rtsp_host:
+            from urllib.parse import quote
+
+            userinfo = self.rtsp_user
+            if self.rtsp_password:
+                userinfo += ":" + quote(self.rtsp_password, safe="")
+            self.rtsp_url = f"rtsp://{userinfo}@{self.rtsp_host}{self.rtsp_path}"
