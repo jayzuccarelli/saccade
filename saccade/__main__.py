@@ -4,7 +4,9 @@
     SACCADE_GLANCE_BACKEND=gemini \
     SACCADE_FOCUS_BACKEND=gemini \
     GEMINI_API_KEY=... python -m saccade        # real models
-    SACCADE_SENSOR=reolink SACCADE_RTSP_URL=rtsp://... python -m saccade
+
+Settings come from the environment (see config.py). Drop them in a gitignored
+.env (copy .env.example) and `python -m saccade` just runs — no launcher script.
 """
 
 from __future__ import annotations

@@ -62,14 +62,20 @@ Point it at a single image (fastest way to see a real read once a key is set):
 python -m saccade snapshot photo.jpg
 ```
 
-With a Reolink (or any RTSP camera):
+With a Reolink (or any RTSP camera) — give the parts and saccade assembles +
+URL-encodes the URL (so a password with `@ : / #` can't break it):
 
 ```bash
 pip install opencv-python-headless
 SACCADE_SENSOR=reolink \
-  SACCADE_RTSP_URL='rtsp://user:pass@camera-ip:554/h264Preview_01_main' \
+  SACCADE_RTSP_USER=admin SACCADE_RTSP_PASSWORD='your-pass' \
+  SACCADE_RTSP_HOST=192.168.0.217:554 SACCADE_RTSP_PATH=/h264Preview_01_sub \
   python -m saccade
+# or pass a full SACCADE_RTSP_URL='rtsp://...' yourself
 ```
+
+Rather than exporting these every run, copy `.env.example` to `.env` (gitignored)
+and fill it in — saccade auto-loads it, so `python -m saccade` just works.
 
 ## Layout
 
