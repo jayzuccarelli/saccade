@@ -36,12 +36,23 @@ class ReolinkSensor:
         stop = threading.Event()
 
         def _reader() -> None:
+            fails = 0
             while not stop.is_set():
                 ok, f = cap.read()
                 if ok:
                     latest["frame"] = f
-                else:
-                    time.sleep(0.05)
+                    fails = 0
+                    continue
+                # A 24/7 camera drops occasionally. After ~2s of failed reads assume
+                # the stream died and reopen it — otherwise we'd silently serve the
+                # last frame forever (the stale-feed bug, one connection drop later).
+                fails += 1
+                if fails >= 40:
+                    cap.release()
+                    cap.open(self.rtsp_url)
+                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    fails = 0
+                time.sleep(0.05)
 
         reader = threading.Thread(target=_reader, daemon=True)
         reader.start()
