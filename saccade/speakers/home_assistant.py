@@ -21,6 +21,22 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 
+class _QuietHandler(SimpleHTTPRequestHandler):
+    """A media player closes the socket the instant it has the clip, which surfaces
+    mid-send as BrokenPipe/ConnectionReset. That's expected, not an error — swallow
+    it (and the per-fetch access log) so a normal playback doesn't dump a traceback
+    every time saccade speaks."""
+
+    def handle_one_request(self):
+        try:
+            super().handle_one_request()
+        except (BrokenPipeError, ConnectionResetError):
+            self.close_connection = True
+
+    def log_message(self, *args) -> None:
+        pass
+
+
 def _lan_ip() -> str:
     """The address other devices on the LAN can reach this box at.
 
@@ -58,7 +74,7 @@ class HomeAssistantSpeaker:
     def _ensure_server(self, directory: Path) -> None:
         if self._server is not None:
             return
-        handler = partial(SimpleHTTPRequestHandler, directory=str(directory))
+        handler = partial(_QuietHandler, directory=str(directory))
         self._server = ThreadingHTTPServer(("0.0.0.0", self.serve_port), handler)
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
 
