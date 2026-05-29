@@ -48,6 +48,9 @@ async def _tick(
     if percept.escalate:
         clip = memory.sensory.recent(focus_clip_frames)
         decision = await focus.reason(percept, Window(frames=clip), memory)
+        # Log every verdict, not just spoken ones — otherwise deliberate silence
+        # (Focus judging it not worth interrupting) looks identical to a dead path.
+        print(f"[focus]  speak={str(decision.speak):5}  {decision.reasoning[:80]}")
         if decision.speak:
             memory.episodic.record(
                 "action", {"message": decision.message, "trigger": percept.summary}
