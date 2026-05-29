@@ -17,14 +17,23 @@ class GeminiBackend:
     def __init__(self, model: str, api_key: str | None = None):
         self.model = model
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
+        self._client = None
+
+    def _client_lazy(self):
+        # Built once and reused — Glance calls this ~1/sec, and a fresh Client per
+        # call rebuilds the connection pool every tick.
+        if self._client is None:
+            from google import genai
+
+            self._client = genai.Client(api_key=self.api_key)
+        return self._client
 
     async def complete(
         self, prompt: str, frames: list[Frame], schema: dict | None = None
     ) -> str:
-        from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=self.api_key)
+        client = self._client_lazy()
         contents: list = [prompt]
         for f in frames:
             if f.image:
