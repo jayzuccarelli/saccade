@@ -21,9 +21,14 @@ Sensors ──▶ Glance ──▶ Percept ──▶ salient? ──▶ Focus �
 - **No hand-coded decision rules.** Exactly two model judgments: Glance decides
   *"worth a closer look?"*, Focus decides *"speak, and what?"*. Recency and
   preferences are **context** fed to the model, never `if` branches.
-- **Models are swappable.** Vendor SDKs live only in `backends/`. Swap a model =
-  swap a Backend. Both tiers are independent.
-- **Inputs are swappable.** Any `Sensor` (camera, mic, screen) is a drop-in.
+- **Models are swappable, and the cheap tier should be local.** Vendor SDKs
+  live only in `backends/`. Swap a model = swap a Backend. The two tiers are
+  independent — the design intent is cheap-local for the always-on judge
+  (private, free, no rate limits) and a bigger API model when something
+  escalates. Run any combo while you build toward that.
+- **Inputs and outputs are swappable.** Any `Sensor` (camera, mic, screen,
+  sensor reading) and any `Speaker` (print, audio, webhook, hardware) is a
+  drop-in. One file each, no harness change.
 - **Cost is managed by architecture, not hacks** — the cheap-gates-expensive
   cascade, image size, and cadence. No heuristic pre-filters.
 - **The brain parallel guides design, it isn't dogma.** Use it where it makes
@@ -128,44 +133,50 @@ and fill it in. saccade auto-loads it, so `python -m saccade` just works.
 | `schema.py` | the contracts: Frame, Window, Percept, Decision |
 | `sensors/` | input streams — `stub`, `reolink` (Protocol in `base.py`) |
 | `backends/` | swappable models — `stub`, `gemini`, `openai`, `anthropic` (the only files that touch a model SDK) |
-| `speakers/` | swappable output — `print` (default), `gemini_tts` (synthesize to wav) |
+| `speakers/` | swappable output — `print` (default), `gemini_tts` (synthesize to wav), `home_assistant` (example of a remote-output speaker) |
 | `glance.py` | cheap peripheral perceiver → Percept |
 | `focus.py` | on-demand deep reasoner → Decision |
 | `memory.py` | working / episodic / semantic |
 | `loop.py` | the orchestrator |
 
-## Voice (output is swappable too)
+## Outputs
 
-When Focus decides to speak, the message goes to a `Speaker`. Default is
-`print` (no audio, no key). Set `SACCADE_SPEAKER=gemini_tts` to synthesize the
-line to a wav with Gemini TTS:
+When Focus decides to act, the message goes to a `Speaker`. "Speaker" is the
+generic name for any output — print, audio, an HTTP webhook, a phone push, a
+hardware actuator. Default is `print` (no audio, no key, works out of the box).
+
+Synthesize to a wav with Gemini TTS:
 
 ```bash
 SACCADE_SPEAKER=gemini_tts GEMINI_API_KEY=... python -m saccade
 ```
 
-The box that *watches* often has no audio out, so by default the speaker just
-writes the clip (`SACCADE_TTS_DIR`, default `utterances/`) and prints where.
-Point `SACCADE_PLAY_CMD` at anything that takes a file path to actually play it
-— `aplay`, `afplay`, or a wrapper that pushes to a speaker. `SACCADE_TTS_VOICE`
-picks the voice (default `Kore`). Adding a new output (a media player, the
-camera's own speaker) = one `Speaker` class; nothing else changes.
+The box that *watches* often has no audio out, so by default the speaker writes
+the clip (`SACCADE_TTS_DIR`, default `utterances/`) and prints where. Point
+`SACCADE_PLAY_CMD` at anything that takes a file path to actually play it —
+`aplay`, `afplay`, or a wrapper that pushes audio elsewhere. `SACCADE_TTS_VOICE`
+picks the voice (default `Kore`).
 
-**Speak through Home Assistant** — synthesize with Gemini TTS, play on a
-Sonos / any `media_player`, no HA filesystem coupling:
+Adding a new output — a phone notification, a webhook, an MQTT message, a
+hardware actuator — is one `Speaker` class in `speakers/`. Nothing else changes.
+
+**Optional: play through a Home Assistant `media_player`.** One concrete
+example of a remote-output Speaker, in case you already run HA. saccade
+synthesizes with Gemini TTS, serves the wav on a small LAN HTTP server, and
+tells HA to fetch it — no HA filesystem coupling.
 
 ```bash
 SACCADE_SPEAKER=home_assistant \
   GEMINI_API_KEY=... \
   SACCADE_HA_URL=http://homeassistant.local:8123 \
   SACCADE_HA_TOKEN=your_long_lived_token \
-  SACCADE_HA_ENTITY=media_player.den \
+  SACCADE_HA_ENTITY=media_player.your_speaker \
   python -m saccade
 ```
 
-saccade serves the wav over a tiny stdlib HTTP server on `0.0.0.0:8189` (LAN
-only — keep it behind your firewall) and tells HA's `play_media` to fetch it.
-Tested on Sonos; any `media_player` entity should work.
+If you don't run HA, ignore this — `gemini_tts` + a local `SACCADE_PLAY_CMD` is
+the simpler path, and writing your own Speaker for whatever you do use is one
+file.
 
 ## Cost & cadence
 
@@ -224,11 +235,18 @@ pip install pytest && python -m pytest -q
 
 ## Status
 
-v0.1: validated live, end-to-end. Reolink RTSP → Glance (Gemini Flash-Lite, 1Hz)
-→ escalate → Focus (Gemini Flash) → Gemini TTS → Sonos via Home Assistant.
-Multi-provider backends, swappable sensors + speakers, structured output,
-episodic memory, evals, tests.
+v0.1: end-to-end loop validated live. RTSP camera → cheap-tier judge (1Hz) →
+escalate → bigger model → audio out. Multi-provider backends, swappable sensors
++ speakers, structured output, episodic memory, evals, tests.
 
-Next: adaptive cadence (Glance picks its own re-check interval), concurrent
-Focus (don't pause Glance while Focus reasons + speaks), more sensors (mic,
-screen). License: MIT.
+Next:
+- **Local cheap tier.** The always-on judge should default to a small local
+  model (Ollama / llama.cpp / a vision SLM) so the watcher is private and free.
+  Currently the bundled backends are all API-hosted; adding a local one is one
+  file in `backends/`.
+- **Adaptive cadence.** Let Glance emit how soon to look again — quiet scene =
+  seconds, action = every tick. Model decides the interval, not a hardcoded rule.
+- **Concurrent Focus.** Don't pause Glance while Focus reasons + acts.
+- **More sensors.** Mic, screen, anything that streams.
+
+License: MIT.
