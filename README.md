@@ -29,41 +29,85 @@ Sensors ──▶ Glance ──▶ Percept ──▶ salient? ──▶ Focus �
 - **The brain parallel guides design, it isn't dogma.** Use it where it makes
   things clearer; drop it the moment it's just decoration.
 
-## Run it
+## Quickstart — for agents
 
-No key, no camera, no installs — runs the scripted scene on the stdlib alone:
+If you're an AI coding agent extending this repo, read this first.
+
+**Hard rules.** Breaking these breaks the design.
+- **No hand-coded decision rules.** The only judgments are the two model calls
+  (`glance.py`, `focus.py`). Salience, urgency, tone — context fed to the model,
+  never `if x and y: speak`.
+- **Vendor SDKs only in `backends/`** and `speakers/gemini_tts.py`. If you find
+  yourself importing `google.genai` or `openai` anywhere else, you're wrong.
+- **Don't break the Protocols** in `sensors/base.py`, `backends/base.py`,
+  `speakers/base.py`. Every concrete class is interchangeable; that's the point.
+- **Structured output goes through the schemas** in `schema.py`
+  (`PERCEPT_SCHEMA`, `DECISION_SCHEMA`). Don't parse free text and don't add a
+  fourth schema unless you're adding a fourth role.
+
+**Where to add things.** One file each — nothing else changes.
+- New camera/mic/screen → `sensors/yours.py` implementing `Sensor.stream()`.
+- New model provider → `backends/yours.py` implementing `Backend.complete()`.
+  Translate `schema` to the provider's native structured-output mechanism.
+- New voice output (a speaker, a TV, a phone) → `speakers/yours.py` implementing
+  `Speaker.say()`.
+- Register the new class in `__main__.py`'s small dispatch.
+
+**Before claiming done.**
+1. `python -m pytest -q` — all green.
+2. `python -m saccade` with no env — the scripted stub run still works end-to-end.
+3. If you touched a real path (camera, model, speaker), actually run it. Tests
+   verify code; running verifies the feature.
+
+**Config + secrets.** `saccade/config.py` auto-loads `.env` at import time
+(stdlib only, no `python-dotenv`). Real env wins over `.env`. Add new vars as
+dataclass fields with `os.environ.get(...)` defaults; don't read env scattered
+across modules.
+
+**Don't.** Add a fallback that "tries the next backend on error" (silent
+provider switch — debug nightmare). Add a "smart" cache that compares frames
+(image diff = hand-coded salience, see hard rule #1). Refactor what wasn't
+asked. Write docstring blocks; one short line max.
+
+## Quickstart — for humans
+
+**Try it with nothing installed.** No key, no camera — runs a scripted scene
+on the stdlib alone:
 
 ```bash
-cd saccade
 python -m saccade
 ```
 
-With real models (add your key) — any provider, mix and match per tier:
+You'll see Glance/Percept/Focus output in the terminal. That's the whole loop,
+just with a stub model and a scripted sensor.
+
+**Add a real model.** Pick a provider, add a key, mix and match per tier:
 
 ```bash
-# Gemini (default models: Glance=2.5 Flash-Lite, Focus=3.5 Flash)
+# Gemini (default: Glance=2.5 Flash-Lite, Focus=3.5 Flash)
 pip install google-genai
 SACCADE_GLANCE_BACKEND=gemini SACCADE_FOCUS_BACKEND=gemini \
   GEMINI_API_KEY=your_key python -m saccade
 
-# or OpenAI, or Claude — same harness, no code change
-SACCADE_GLANCE_BACKEND=anthropic SACCADE_FOCUS_BACKEND=anthropic \
-  ANTHROPIC_API_KEY=your_key python -m saccade
+# Or OpenAI, or Claude — same harness:
+SACCADE_GLANCE_BACKEND=openai SACCADE_FOCUS_BACKEND=anthropic \
+  OPENAI_API_KEY=... ANTHROPIC_API_KEY=... python -m saccade
 ```
 
-Structured output is enforced provider-agnostically: the role declares a JSON
-Schema, and each backend translates it natively — Gemini `response_json_schema`,
-OpenAI `response_format`, Claude forced tool-use. The cheap and smart tiers are
-independent, so you can even run Glance on one provider and Focus on another.
+Structured output is enforced provider-agnostically: each role declares a JSON
+Schema and each backend translates it natively (Gemini `response_json_schema`,
+OpenAI `response_format`, Claude forced tool-use). Cheap and smart tiers are
+independent, so Glance on one provider + Focus on another works fine.
 
-Point it at a single image (fastest way to see a real read once a key is set):
+**Point it at one image** (fastest way to sanity-check a key):
 
 ```bash
 python -m saccade snapshot photo.jpg
 ```
 
-With a Reolink (or any RTSP camera) — give the parts and saccade assembles +
-URL-encodes the URL (so a password with `@ : / #` can't break it):
+**Point it at an RTSP camera** (Reolink or anything that speaks RTSP). Give the
+parts and saccade assembles + URL-encodes the URL — a password with `@ : / #`
+won't break it:
 
 ```bash
 pip install opencv-python-headless
@@ -74,8 +118,8 @@ SACCADE_SENSOR=reolink \
 # or pass a full SACCADE_RTSP_URL='rtsp://...' yourself
 ```
 
-Rather than exporting these every run, copy `.env.example` to `.env` (gitignored)
-and fill it in — saccade auto-loads it, so `python -m saccade` just works.
+**Stop typing env vars every run.** Copy `.env.example` → `.env` (gitignored)
+and fill it in. saccade auto-loads it, so `python -m saccade` just works.
 
 ## Layout
 
@@ -106,6 +150,22 @@ Point `SACCADE_PLAY_CMD` at anything that takes a file path to actually play it
 — `aplay`, `afplay`, or a wrapper that pushes to a speaker. `SACCADE_TTS_VOICE`
 picks the voice (default `Kore`). Adding a new output (a media player, the
 camera's own speaker) = one `Speaker` class; nothing else changes.
+
+**Speak through Home Assistant** — synthesize with Gemini TTS, play on a
+Sonos / any `media_player`, no HA filesystem coupling:
+
+```bash
+SACCADE_SPEAKER=home_assistant \
+  GEMINI_API_KEY=... \
+  SACCADE_HA_URL=http://homeassistant.local:8123 \
+  SACCADE_HA_TOKEN=your_long_lived_token \
+  SACCADE_HA_ENTITY=media_player.den \
+  python -m saccade
+```
+
+saccade serves the wav over a tiny stdlib HTTP server on `0.0.0.0:8189` (LAN
+only — keep it behind your firewall) and tells HA's `play_media` to fetch it.
+Tested on Sonos; any `media_player` entity should work.
 
 ## Cost & cadence
 
@@ -164,6 +224,11 @@ pip install pytest && python -m pytest -q
 
 ## Status
 
-v0: scripted stub end-to-end, vision-only, working memory, prints suggestions.
-Multi-provider (Gemini / OpenAI / Claude), resilient loop, snapshot mode, tests.
-Next: wire a key, point it at the Reolink, add voice out.
+v0.1: validated live, end-to-end. Reolink RTSP → Glance (Gemini Flash-Lite, 1Hz)
+→ escalate → Focus (Gemini Flash) → Gemini TTS → Sonos via Home Assistant.
+Multi-provider backends, swappable sensors + speakers, structured output,
+episodic memory, evals, tests.
+
+Next: adaptive cadence (Glance picks its own re-check interval), concurrent
+Focus (don't pause Glance while Focus reasons + speaks), more sensors (mic,
+screen). License: MIT.
