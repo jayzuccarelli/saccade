@@ -158,25 +158,9 @@ the clip (`SACCADE_TTS_DIR`, default `utterances/`) and prints where. Point
 picks the voice (default `Kore`).
 
 Adding a new output — a phone notification, a webhook, an MQTT message, a
-hardware actuator — is one `Speaker` class in `speakers/`. Nothing else changes.
-
-**Optional: play through a Home Assistant `media_player`.** One concrete
-example of a remote-output Speaker, in case you already run HA. saccade
-synthesizes with Gemini TTS, serves the wav on a small LAN HTTP server, and
-tells HA to fetch it — no HA filesystem coupling.
-
-```bash
-SACCADE_SPEAKER=home_assistant \
-  GEMINI_API_KEY=... \
-  SACCADE_HA_URL=http://homeassistant.local:8123 \
-  SACCADE_HA_TOKEN=your_long_lived_token \
-  SACCADE_HA_ENTITY=media_player.your_speaker \
-  python -m saccade
-```
-
-If you don't run HA, ignore this — `gemini_tts` + a local `SACCADE_PLAY_CMD` is
-the simpler path, and writing your own Speaker for whatever you do use is one
-file.
+hardware actuator, a smart-home media player — is one `Speaker` class in
+`speakers/`. Nothing else changes. See `speakers/home_assistant.py` for a
+worked example of a remote-output speaker.
 
 ## Cost & cadence
 
