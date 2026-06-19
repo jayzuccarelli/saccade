@@ -1,6 +1,7 @@
 """OpenAI backend. Structured output via response_format json_schema (strict).
 
-Lazy import so the harness runs without the SDK. UNTESTED until a key is wired.
+Lazy import so the harness runs without the SDK. Follows the OpenAI spec but
+hasn't been validated live by the author — please report issues.
 
     pip install openai   # then set OPENAI_API_KEY
 """

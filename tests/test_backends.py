@@ -5,6 +5,7 @@ import json
 
 from saccade.__main__ import DEFAULT_MODELS, make_backend
 from saccade.backends.gemini import GeminiBackend
+from saccade.backends.ollama import OllamaBackend
 from saccade.backends.stub import StubBackend
 from saccade.config import Config
 from saccade.schema import DECISION_SCHEMA, PERCEPT_SCHEMA, Frame
@@ -17,10 +18,14 @@ def test_make_backend_dispatch_and_default_models():
     assert isinstance(g, GeminiBackend)
     assert g.model == "gemini-2.5-flash-lite"
     assert make_backend("gemini", "focus", c).model == "gemini-3.5-flash"
+    o = make_backend("ollama", "glance", c)
+    assert isinstance(o, OllamaBackend)
+    assert o.model == "gemma3:4b"
+    assert make_backend("ollama", "focus", c).model == "gemma3:12b"
 
 
 def test_default_models_cover_every_provider_and_tier():
-    for provider in ("gemini", "openai", "anthropic"):
+    for provider in ("gemini", "openai", "anthropic", "ollama"):
         for role in ("glance", "focus"):
             assert (provider, role) in DEFAULT_MODELS
 

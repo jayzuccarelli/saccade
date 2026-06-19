@@ -46,6 +46,8 @@ DEFAULT_MODELS = {
     ("openai", "focus"): "gpt-5.5",
     ("anthropic", "glance"): "claude-haiku-4-5",
     ("anthropic", "focus"): "claude-sonnet-4-6",
+    ("ollama", "glance"): "gemma3:4b",
+    ("ollama", "focus"): "gemma3:12b",
 }
 
 
@@ -64,6 +66,10 @@ def make_backend(kind: str, role: str, c: Config):
         from saccade.backends.anthropic import AnthropicBackend
 
         return AnthropicBackend(model)
+    if kind == "ollama":
+        from saccade.backends.ollama import OllamaBackend
+
+        return OllamaBackend(model, host=c.ollama_host or None)
     from saccade.backends.stub import StubBackend
 
     return StubBackend(role=role)
