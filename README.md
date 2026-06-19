@@ -76,8 +76,15 @@ asked. Write docstring blocks; one short line max.
 
 ## Quickstart — for humans
 
-**Try it with nothing installed.** No key, no camera — runs a scripted scene
-on the stdlib alone:
+**Install.**
+
+```bash
+git clone https://github.com/jayzuccarelli/saccade && cd saccade
+pip install -e .
+```
+
+**Try it with nothing else.** No key, no camera — runs a scripted scene on the
+stdlib alone:
 
 ```bash
 python -m saccade
@@ -86,7 +93,20 @@ python -m saccade
 You'll see Glance/Percept/Focus output in the terminal. That's the whole loop,
 just with a stub model and a scripted sensor.
 
-**Add a real model.** Pick a provider, add a key, mix and match per tier:
+**Go local, private, free with Ollama** (recommended for the always-on Glance
+tier — no API bill, no rate limits, frames never leave your machine):
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull gemma3:4b           # ~3GB, multimodal, Glance default
+ollama pull gemma3:12b          # smarter, Focus default
+
+SACCADE_GLANCE_BACKEND=ollama SACCADE_FOCUS_BACKEND=ollama python -m saccade
+```
+
+Any Ollama vision model works — swap with `SACCADE_GLANCE_MODEL=qwen2.5vl:7b` etc.
+
+**Or use a hosted model.** Pick a provider, add a key, mix and match per tier:
 
 ```bash
 # Gemini (default: Glance=2.5 Flash-Lite, Focus=3.5 Flash)
@@ -94,15 +114,17 @@ pip install google-genai
 SACCADE_GLANCE_BACKEND=gemini SACCADE_FOCUS_BACKEND=gemini \
   GEMINI_API_KEY=your_key python -m saccade
 
-# Or OpenAI, or Claude — same harness:
+# Or OpenAI, or Claude — same harness (validated path is Gemini + Ollama;
+# OpenAI/Anthropic backends follow each provider's spec but aren't live-tested):
 SACCADE_GLANCE_BACKEND=openai SACCADE_FOCUS_BACKEND=anthropic \
   OPENAI_API_KEY=... ANTHROPIC_API_KEY=... python -m saccade
 ```
 
 Structured output is enforced provider-agnostically: each role declares a JSON
-Schema and each backend translates it natively (Gemini `response_json_schema`,
-OpenAI `response_format`, Claude forced tool-use). Cheap and smart tiers are
-independent, so Glance on one provider + Focus on another works fine.
+Schema and each backend translates it natively (Ollama `format`, Gemini
+`response_json_schema`, OpenAI `response_format`, Claude forced tool-use). Cheap
+and smart tiers are independent — Glance on Ollama + Focus on Gemini is a
+common combo (private always-on, paid SOTA only when something escalates).
 
 **Point it at one image** (fastest way to sanity-check a key):
 
@@ -132,7 +154,7 @@ and fill it in. saccade auto-loads it, so `python -m saccade` just works.
 |---|---|
 | `schema.py` | the contracts: Frame, Window, Percept, Decision |
 | `sensors/` | input streams — `stub`, `reolink` (Protocol in `base.py`) |
-| `backends/` | swappable models — `stub`, `gemini`, `openai`, `anthropic` (the only files that touch a model SDK) |
+| `backends/` | swappable models — `stub`, `ollama` (local, stdlib), `gemini`, `openai`, `anthropic` (the only files that touch a model SDK) |
 | `speakers/` | swappable output — `print` (default), `gemini_tts` (synthesize to wav), `home_assistant` (example of a remote-output speaker) |
 | `glance.py` | cheap peripheral perceiver → Percept |
 | `focus.py` | on-demand deep reasoner → Decision |
@@ -220,14 +242,10 @@ pip install pytest && python -m pytest -q
 ## Status
 
 v0.1: end-to-end loop validated live. RTSP camera → cheap-tier judge (1Hz) →
-escalate → bigger model → audio out. Multi-provider backends, swappable sensors
+escalate → bigger model → audio out. Local + hosted backends, swappable sensors
 + speakers, structured output, episodic memory, evals, tests.
 
 Next:
-- **Local cheap tier.** The always-on judge should default to a small local
-  model (Ollama / llama.cpp / a vision SLM) so the watcher is private and free.
-  Currently the bundled backends are all API-hosted; adding a local one is one
-  file in `backends/`.
 - **Adaptive cadence.** Let Glance emit how soon to look again — quiet scene =
   seconds, action = every tick. Model decides the interval, not a hardcoded rule.
 - **Concurrent Focus.** Don't pause Glance while Focus reasons + acts.

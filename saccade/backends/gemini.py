@@ -1,7 +1,7 @@
 """Gemini backend. Default models: Glance = 2.5 Flash-Lite, Focus = 3.5 Flash.
 
-Lazy import of google-genai so the harness runs without it. UNTESTED until a key
-is wired — verify the async call shape against the installed SDK version.
+Lazy import of google-genai so the harness runs without it. Validated live end
+to end — RTSP camera → Glance @ 1Hz → Focus → TTS.
 
     pip install google-genai   # then set GEMINI_API_KEY
 """

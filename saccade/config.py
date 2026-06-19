@@ -82,12 +82,14 @@ class Config:
     working_memory: int = int(os.environ.get("SACCADE_WORKING_MEMORY", "30"))
     focus_clip_frames: int = int(os.environ.get("SACCADE_FOCUS_CLIP_FRAMES", "6"))
 
-    # Backends: "stub" (no key), "gemini", "openai", "anthropic"
+    # Backends: "stub" (no key), "ollama" (local), "gemini", "openai", "anthropic"
     glance_backend: str = os.environ.get("SACCADE_GLANCE_BACKEND", "stub")
     focus_backend: str = os.environ.get("SACCADE_FOCUS_BACKEND", "stub")
     # Empty = use that provider's default model (see DEFAULT_MODELS in __main__)
     glance_model: str = os.environ.get("SACCADE_GLANCE_MODEL", "")
     focus_model: str = os.environ.get("SACCADE_FOCUS_MODEL", "")
+    # Ollama endpoint (empty = use OLLAMA_HOST or http://localhost:11434).
+    ollama_host: str = os.environ.get("SACCADE_OLLAMA_HOST", "")
 
     episodic_path: str = os.environ.get("SACCADE_EPISODIC", "episodic.jsonl")
     preferences_path: str = os.environ.get("SACCADE_PREFS", "preferences.md")

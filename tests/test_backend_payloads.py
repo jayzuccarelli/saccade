@@ -3,6 +3,8 @@ mechanism. SDKs are mocked, so these check request construction, not the network
 Skipped automatically where a provider SDK isn't installed (e.g. lean CI)."""
 
 import asyncio
+import base64
+import io
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -43,6 +45,33 @@ def test_openai_uses_response_format_json_schema():
     assert kwargs["response_format"]["type"] == "json_schema"
     assert kwargs["response_format"]["json_schema"]["schema"] == PERCEPT_SCHEMA
     assert kwargs["response_format"]["json_schema"]["strict"] is True
+
+
+def test_ollama_passes_json_schema_and_base64_image():
+    from saccade.backends.ollama import OllamaBackend
+
+    captured: dict = {}
+
+    def fake_urlopen(req, timeout=None):
+        captured["url"] = req.full_url
+        captured["body"] = json.loads(req.data)
+        return io.BytesIO(json.dumps({"message": {"content": '{"ok":true}'}}).encode())
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        out = asyncio.run(
+            OllamaBackend("gemma3:4b", host="http://localhost:11434").complete(
+                "hi", [_IMG], schema=PERCEPT_SCHEMA
+            )
+        )
+    assert out == '{"ok":true}'
+    assert captured["url"] == "http://localhost:11434/api/chat"
+    body = captured["body"]
+    assert body["model"] == "gemma3:4b"
+    assert body["stream"] is False
+    assert body["format"] == PERCEPT_SCHEMA
+    msg = body["messages"][0]
+    assert msg["content"] == "hi"
+    assert msg["images"] == [base64.b64encode(_IMG.image).decode()]
 
 
 def test_anthropic_forces_tool_use_and_returns_input():

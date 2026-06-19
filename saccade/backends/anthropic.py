@@ -4,7 +4,8 @@ Claude has no json-schema response param, so the canonical way to guarantee a
 shape is to expose a single tool whose input_schema *is* the schema and force
 it with tool_choice. The harness never sees this — it just gets JSON back.
 
-Lazy import so the harness runs without the SDK. UNTESTED until a key is wired.
+Lazy import so the harness runs without the SDK. Follows the Anthropic spec but
+hasn't been validated live by the author — please report issues.
 
     pip install anthropic   # then set ANTHROPIC_API_KEY
 """

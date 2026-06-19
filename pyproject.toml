@@ -1,10 +1,24 @@
 [project]
 name = "saccade"
-version = "0.0.1"
+version = "0.1.0"
 description = "An open harness for proactive ambient agents — peripheral Glance, focused Focus."
+readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-dependencies = []  # core runs on the stdlib alone
+authors = [{ name = "Eugenio Zuccarelli" }]
+keywords = ["ambient-agent", "agents", "vision", "ollama", "gemini", "openai", "anthropic"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = []  # core runs on the stdlib alone (Ollama backend included)
 
 [project.optional-dependencies]
 gemini = ["google-genai"]
@@ -12,9 +26,16 @@ openai = ["openai"]
 anthropic = ["anthropic"]
 camera = ["opencv-python-headless"]
 
+[project.urls]
+Homepage = "https://github.com/jayzuccarelli/saccade"
+Issues = "https://github.com/jayzuccarelli/saccade/issues"
+
 [project.scripts]
 saccade = "saccade.__main__:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["saccade"]
