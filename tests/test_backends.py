@@ -16,7 +16,7 @@ def test_make_backend_dispatch_and_default_models():
     assert isinstance(make_backend("stub", "glance", c), StubBackend)
     g = make_backend("gemini", "glance", c)
     assert isinstance(g, GeminiBackend)
-    assert g.model == "gemini-2.5-flash-lite"
+    assert g.model == "gemini-3.1-flash-lite"
     assert make_backend("gemini", "focus", c).model == "gemini-3.5-flash"
     o = make_backend("ollama", "glance", c)
     assert isinstance(o, OllamaBackend)
