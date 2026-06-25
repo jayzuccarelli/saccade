@@ -40,7 +40,7 @@ def make_sensor(c: Config):
 # Sensible per-provider defaults for each tier. Glance = cheap/fast, Focus = smart.
 # Gemini + Anthropic IDs verified; OpenAI IDs may need adjusting to current names.
 DEFAULT_MODELS = {
-    ("gemini", "glance"): "gemini-2.5-flash-lite",
+    ("gemini", "glance"): "gemini-3.1-flash-lite",
     ("gemini", "focus"): "gemini-3.5-flash",
     ("openai", "glance"): "gpt-4.1-nano",
     ("openai", "focus"): "gpt-5.5",
