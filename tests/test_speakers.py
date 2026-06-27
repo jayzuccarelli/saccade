@@ -6,6 +6,8 @@ import urllib.request
 import wave
 from types import SimpleNamespace
 
+import pytest
+
 from saccade import loop as looplib
 from saccade.backends.stub import StubBackend
 from saccade.focus import Focus
@@ -50,6 +52,7 @@ def test_loop_awaits_an_async_speaker(tmp_path):
 
 
 def test_gemini_tts_writes_a_wav(tmp_path):
+    pytest.importorskip("google.genai")  # optional dep: synthesize() needs SDK types
     pcm = b"\x00\x01" * 12000  # 24000 bytes of fake 16-bit mono PCM
     fake_resp = SimpleNamespace(
         candidates=[
