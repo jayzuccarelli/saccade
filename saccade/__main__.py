@@ -131,8 +131,13 @@ async def main() -> None:
         f"focus={c.focus_backend} speaker={c.speaker}\n"
     )
     await looplib.run(
-        sensor, glance, focus, memory, on_action=speaker.say,
-        glance_fps=c.glance_fps, focus_clip_frames=c.focus_clip_frames,
+        sensor,
+        glance,
+        focus,
+        memory,
+        on_action=speaker.say,
+        glance_fps=c.glance_fps,
+        focus_clip_frames=c.focus_clip_frames,
     )
 
 

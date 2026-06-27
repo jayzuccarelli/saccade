@@ -19,11 +19,15 @@ def test_gemini_passes_json_schema_and_image():
     pytest.importorskip("google.genai")
     from saccade.backends.gemini import GeminiBackend
 
-    resp = MagicMock(text='{"summary":"x","tags":[],"salience":0.1,"escalate":false,"state_delta":""}')
+    resp = MagicMock(
+        text='{"summary":"x","tags":[],"salience":0.1,"escalate":false,"state_delta":""}'
+    )
     client = MagicMock()
     client.aio.models.generate_content = AsyncMock(return_value=resp)
     with patch("google.genai.Client", return_value=client):
-        out = asyncio.run(GeminiBackend("m", api_key="k").complete("hi", [_IMG], schema=PERCEPT_SCHEMA))
+        out = asyncio.run(
+            GeminiBackend("m", api_key="k").complete("hi", [_IMG], schema=PERCEPT_SCHEMA)
+        )
     assert out == resp.text
     kwargs = client.aio.models.generate_content.call_args.kwargs
     assert kwargs["config"].response_json_schema == PERCEPT_SCHEMA
@@ -39,7 +43,9 @@ def test_openai_uses_response_format_json_schema():
     client = MagicMock()
     client.chat.completions.create = AsyncMock(return_value=resp)
     with patch("openai.AsyncOpenAI", return_value=client):
-        out = asyncio.run(OpenAIBackend("m", api_key="k").complete("hi", [_IMG], schema=PERCEPT_SCHEMA))
+        out = asyncio.run(
+            OpenAIBackend("m", api_key="k").complete("hi", [_IMG], schema=PERCEPT_SCHEMA)
+        )
     assert out == '{"ok":true}'
     kwargs = client.chat.completions.create.call_args.kwargs
     assert kwargs["response_format"]["type"] == "json_schema"
@@ -83,7 +89,9 @@ def test_anthropic_forces_tool_use_and_returns_input():
     client = MagicMock()
     client.messages.create = AsyncMock(return_value=resp)
     with patch("anthropic.AsyncAnthropic", return_value=client):
-        out = asyncio.run(AnthropicBackend("m", api_key="k").complete("hi", [_IMG], schema=PERCEPT_SCHEMA))
+        out = asyncio.run(
+            AnthropicBackend("m", api_key="k").complete("hi", [_IMG], schema=PERCEPT_SCHEMA)
+        )
     assert json.loads(out) == {"summary": "x", "escalate": True}
     kwargs = client.messages.create.call_args.kwargs
     assert kwargs["tools"][0]["input_schema"] == PERCEPT_SCHEMA

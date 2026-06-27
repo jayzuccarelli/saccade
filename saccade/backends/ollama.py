@@ -37,9 +37,7 @@ class OllamaBackend:
         ).rstrip("/")
         self.timeout = timeout
 
-    async def complete(
-        self, prompt: str, frames: list[Frame], schema: dict | None = None
-    ) -> str:
+    async def complete(self, prompt: str, frames: list[Frame], schema: dict | None = None) -> str:
         message: dict = {"role": "user", "content": prompt}
         images = [base64.b64encode(f.image).decode() for f in frames if f.image]
         if images:

@@ -28,9 +28,7 @@ class GeminiBackend:
             self._client = genai.Client(api_key=self.api_key)
         return self._client
 
-    async def complete(
-        self, prompt: str, frames: list[Frame], schema: dict | None = None
-    ) -> str:
+    async def complete(self, prompt: str, frames: list[Frame], schema: dict | None = None) -> str:
         from google.genai import types
 
         client = self._client_lazy()

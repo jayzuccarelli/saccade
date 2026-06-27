@@ -80,7 +80,7 @@ asked. Write docstring blocks; one short line max.
 
 ```bash
 git clone https://github.com/jayzuccarelli/saccade && cd saccade
-pip install -e .
+uv pip install -e .   # or `pip install -e .` if you don't have uv
 ```
 
 **Try it with nothing else.** No key, no camera — runs a scripted scene on the
@@ -109,8 +109,8 @@ Any Ollama vision model works — swap with `SACCADE_GLANCE_MODEL=qwen2.5vl:7b` 
 **Or use a hosted model.** Pick a provider, add a key, mix and match per tier:
 
 ```bash
-# Gemini (default: Glance=2.5 Flash-Lite, Focus=3.5 Flash)
-pip install google-genai
+# Gemini (default: Glance=3.1 Flash-Lite, Focus=3.5 Flash)
+uv pip install google-genai
 SACCADE_GLANCE_BACKEND=gemini SACCADE_FOCUS_BACKEND=gemini \
   GEMINI_API_KEY=your_key python -m saccade
 
@@ -137,7 +137,7 @@ parts and saccade assembles + URL-encodes the URL — a password with `@ : / #`
 won't break it:
 
 ```bash
-pip install opencv-python-headless
+uv pip install opencv-python-headless
 SACCADE_SENSOR=reolink \
   SACCADE_RTSP_USER=admin SACCADE_RTSP_PASSWORD='your-pass' \
   SACCADE_RTSP_HOST=192.0.2.217:554 SACCADE_RTSP_PATH=/h264Preview_01_sub \
@@ -236,7 +236,7 @@ score a real model the same way.
 ## Tests
 
 ```bash
-pip install pytest && python -m pytest -q
+uv pip install pytest && python -m pytest -q
 ```
 
 ## Status
