@@ -6,7 +6,8 @@ is a new file implementing `stream()`, and nothing in the core changes.
 
 from __future__ import annotations
 
-from typing import AsyncIterator, Protocol
+from collections.abc import AsyncIterator
+from typing import Protocol
 
 from saccade.schema import Frame
 

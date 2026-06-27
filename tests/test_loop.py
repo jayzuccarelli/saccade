@@ -5,10 +5,10 @@ timing); the parallel capture/shutdown is tested through run()."""
 import asyncio
 
 from saccade import loop as looplib
+from saccade.backends.stub import StubBackend
 from saccade.focus import Focus
 from saccade.glance import Glance
 from saccade.memory import Memory
-from saccade.backends.stub import StubBackend
 from saccade.schema import Frame
 
 
@@ -41,11 +41,16 @@ def _mem(tmp_path):
 
 # --- per-tick logic: deterministic, no timing ---
 
+
 def test_tick_salient_frame_triggers_action(tmp_path):
     memory = _mem(tmp_path)
     memory.observe_frame(Frame(ts=0.0, meta={"scene": "the mug is empty"}))
     actions = []
-    asyncio.run(looplib._tick(Glance(StubBackend("glance")), Focus(StubBackend("focus")), memory, 6, actions.append))
+    asyncio.run(
+        looplib._tick(
+            Glance(StubBackend("glance")), Focus(StubBackend("focus")), memory, 6, actions.append
+        )
+    )
     assert len(actions) == 1
 
 
@@ -53,7 +58,11 @@ def test_tick_quiet_frame_stays_silent(tmp_path):
     memory = _mem(tmp_path)
     memory.observe_frame(Frame(ts=0.0, meta={"scene": "person typing"}))
     actions = []
-    asyncio.run(looplib._tick(Glance(StubBackend("glance")), Focus(StubBackend("focus")), memory, 6, actions.append))
+    asyncio.run(
+        looplib._tick(
+            Glance(StubBackend("glance")), Focus(StubBackend("focus")), memory, 6, actions.append
+        )
+    )
     assert actions == []
 
 
@@ -68,13 +77,16 @@ def test_tick_gives_focus_a_clip_not_one_frame(tmp_path):
 
 # --- run(): parallel capture, clean shutdown, resilience ---
 
+
 def test_run_terminates_on_finite_source(tmp_path):
     sensor = _ScriptedSensor(["a", "b", "the mug is empty"])
     glance = Glance(StubBackend("glance"))
     focus = Focus(StubBackend("focus"))
     actions = []
     # completes (doesn't hang) once the source is exhausted
-    asyncio.run(looplib.run(sensor, glance, focus, _mem(tmp_path), on_action=actions.append, glance_fps=0))
+    asyncio.run(
+        looplib.run(sensor, glance, focus, _mem(tmp_path), on_action=actions.append, glance_fps=0)
+    )
 
 
 def test_run_survives_a_failing_backend(tmp_path):
@@ -82,5 +94,7 @@ def test_run_survives_a_failing_backend(tmp_path):
     glance = Glance(_BoomBackend())
     focus = Focus(StubBackend("focus"))
     actions = []
-    asyncio.run(looplib.run(sensor, glance, focus, _mem(tmp_path), on_action=actions.append, glance_fps=0))
+    asyncio.run(
+        looplib.run(sensor, glance, focus, _mem(tmp_path), on_action=actions.append, glance_fps=0)
+    )
     assert actions == []  # glance kept failing; no crash, no action

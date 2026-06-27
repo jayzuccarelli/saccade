@@ -12,9 +12,7 @@ from saccade.schema import Frame
 
 
 class Backend(Protocol):
-    async def complete(
-        self, prompt: str, frames: list[Frame], schema: dict | None = None
-    ) -> str:
+    async def complete(self, prompt: str, frames: list[Frame], schema: dict | None = None) -> str:
         """Run multimodal inference. Return the model's raw text.
 
         If `schema` (a JSON Schema dict) is given, the backend enforces structured

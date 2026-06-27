@@ -14,15 +14,15 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import inspect
-from typing import Awaitable, Callable, Union
-
-# on_action may be sync (print) or async (a Speaker.say) — the loop handles both.
-Action = Callable[[str], Union[None, Awaitable[None]]]
+from collections.abc import Awaitable, Callable
 
 from saccade.focus import Focus
 from saccade.glance import Glance
 from saccade.memory import Memory
 from saccade.schema import Percept, Window
+
+# on_action may be sync (print) or async (a Speaker.say) — the loop handles both.
+Action = Callable[[str], None | Awaitable[None]]
 
 
 def _log(p: Percept) -> None:

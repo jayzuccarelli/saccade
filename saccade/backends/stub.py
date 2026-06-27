@@ -19,9 +19,7 @@ class StubBackend:
     def __init__(self, role: str = "glance"):
         self.role = role
 
-    async def complete(
-        self, prompt: str, frames: list[Frame], schema: dict | None = None
-    ) -> str:
+    async def complete(self, prompt: str, frames: list[Frame], schema: dict | None = None) -> str:
         scene = frames[-1].meta.get("scene", "") if frames else ""
         if self.role == "glance":
             interesting = any(k in scene for k in _INTERESTING)

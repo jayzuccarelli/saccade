@@ -34,9 +34,7 @@ class AnthropicBackend:
             self._client = AsyncAnthropic(api_key=self.api_key)
         return self._client
 
-    async def complete(
-        self, prompt: str, frames: list[Frame], schema: dict | None = None
-    ) -> str:
+    async def complete(self, prompt: str, frames: list[Frame], schema: dict | None = None) -> str:
         client = self._client_lazy()
         blocks: list = [{"type": "text", "text": prompt}]
         for f in frames:
