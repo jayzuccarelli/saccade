@@ -41,9 +41,7 @@ class GeminiTTSSpeaker:
         if self._client is None:
             from google import genai
 
-            self._client = (
-                genai.Client(api_key=self._api_key) if self._api_key else genai.Client()
-            )
+            self._client = genai.Client(api_key=self._api_key) if self._api_key else genai.Client()
         return self._client
 
     async def synthesize(self, text: str) -> Path:

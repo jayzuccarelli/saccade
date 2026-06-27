@@ -8,12 +8,7 @@ from saccade.config import Config, _apply_dotenv
 def test_apply_dotenv_parses_and_unquotes(tmp_path, monkeypatch):
     monkeypatch.delenv("SACCADE_FOO", raising=False)
     env = tmp_path / ".env"
-    env.write_text(
-        "# a comment\n"
-        "\n"
-        "SACCADE_FOO=bar\n"
-        'export SACCADE_QUOTED="baz qux"\n'
-    )
+    env.write_text('# a comment\n\nSACCADE_FOO=bar\nexport SACCADE_QUOTED="baz qux"\n')
     parsed = _apply_dotenv(str(env))
     assert parsed["SACCADE_FOO"] == "bar"
     assert parsed["SACCADE_QUOTED"] == "baz qux"  # quotes stripped, export honored
@@ -33,8 +28,13 @@ def test_apply_dotenv_does_not_clobber_real_env(tmp_path, monkeypatch):
 
 
 def test_rtsp_url_assembled_from_parts_with_encoding():
-    c = Config(rtsp_url="", rtsp_user="admin", rtsp_password="p@ss/w:rd",
-               rtsp_host="10.0.0.9:554", rtsp_path="/h264Preview_01_sub")
+    c = Config(
+        rtsp_url="",
+        rtsp_user="admin",
+        rtsp_password="p@ss/w:rd",
+        rtsp_host="10.0.0.9:554",
+        rtsp_path="/h264Preview_01_sub",
+    )
     # the symbols are percent-encoded so they can't break the URL
     assert c.rtsp_url == "rtsp://admin:p%40ss%2Fw%3Ard@10.0.0.9:554/h264Preview_01_sub"
 

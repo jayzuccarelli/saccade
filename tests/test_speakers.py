@@ -2,20 +2,19 @@
 same way it drove a sync print, and the TTS speaker must write a real wav."""
 
 import asyncio
+import urllib.request
 import wave
 from types import SimpleNamespace
 
 from saccade import loop as looplib
+from saccade.backends.stub import StubBackend
 from saccade.focus import Focus
 from saccade.glance import Glance
 from saccade.memory import Memory
-from saccade.backends.stub import StubBackend
 from saccade.schema import Frame
-import urllib.request
-
-from saccade.speakers.print import PrintSpeaker
 from saccade.speakers.gemini_tts import GeminiTTSSpeaker
 from saccade.speakers.home_assistant import HomeAssistantSpeaker, _lan_ip
+from saccade.speakers.print import PrintSpeaker
 
 
 def _mem(tmp_path):
@@ -40,7 +39,10 @@ def test_loop_awaits_an_async_speaker(tmp_path):
 
     asyncio.run(
         looplib._tick(
-            Glance(StubBackend("glance")), Focus(StubBackend("focus")), memory, 6,
+            Glance(StubBackend("glance")),
+            Focus(StubBackend("focus")),
+            memory,
+            6,
             RecordingSpeaker().say,
         )
     )
@@ -50,9 +52,13 @@ def test_loop_awaits_an_async_speaker(tmp_path):
 def test_gemini_tts_writes_a_wav(tmp_path):
     pcm = b"\x00\x01" * 12000  # 24000 bytes of fake 16-bit mono PCM
     fake_resp = SimpleNamespace(
-        candidates=[SimpleNamespace(content=SimpleNamespace(
-            parts=[SimpleNamespace(inline_data=SimpleNamespace(data=pcm))]
-        ))]
+        candidates=[
+            SimpleNamespace(
+                content=SimpleNamespace(
+                    parts=[SimpleNamespace(inline_data=SimpleNamespace(data=pcm))]
+                )
+            )
+        ]
     )
 
     class FakeModels:
@@ -97,8 +103,12 @@ class _FakeTTS:
 def test_ha_speaker_serves_clip_and_posts_play_media(tmp_path):
     tts = _FakeTTS(tmp_path / "utt")
     spk = HomeAssistantSpeaker(
-        tts, "http://ha.local:8123", "tok", "media_player.den",
-        serve_host="127.0.0.1", serve_port=0,  # ephemeral — no port collision
+        tts,
+        "http://ha.local:8123",
+        "tok",
+        "media_player.den",
+        serve_host="127.0.0.1",
+        serve_port=0,  # ephemeral — no port collision
     )
 
     posted = {}

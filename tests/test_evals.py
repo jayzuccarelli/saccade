@@ -3,10 +3,10 @@
 
 import asyncio
 
+from saccade.backends.stub import StubBackend
 from saccade.evals import Case, evaluate, score
 from saccade.glance import Glance
 from saccade.memory import Memory
-from saccade.backends.stub import StubBackend
 
 
 def test_score_math():

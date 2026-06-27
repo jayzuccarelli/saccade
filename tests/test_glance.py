@@ -40,7 +40,9 @@ def test_glance_downscales_before_sending(tmp_path):
     big = _jpeg(1920, 1080)
     be = _CapturingBackend()
     g = Glance(be, max_dim=768)
-    asyncio.run(g.perceive(Window(frames=[Frame(ts=0.0, image=big, mime="image/jpeg")]), _mem(tmp_path)))
+    asyncio.run(
+        g.perceive(Window(frames=[Frame(ts=0.0, image=big, mime="image/jpeg")]), _mem(tmp_path))
+    )
     sent = be.frames[0].image
     assert max(Image.open(io.BytesIO(sent)).size) == 768
     assert len(sent) < len(big)
@@ -50,7 +52,9 @@ def test_glance_sends_original_when_off(tmp_path):
     big = _jpeg(1920, 1080)
     be = _CapturingBackend()
     g = Glance(be, max_dim=0)
-    asyncio.run(g.perceive(Window(frames=[Frame(ts=0.0, image=big, mime="image/jpeg")]), _mem(tmp_path)))
+    asyncio.run(
+        g.perceive(Window(frames=[Frame(ts=0.0, image=big, mime="image/jpeg")]), _mem(tmp_path))
+    )
     assert be.frames[0].image is big  # untouched
 
 

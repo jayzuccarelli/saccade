@@ -48,9 +48,7 @@ class Glance:
         percepts = memory.working.recent(n)
         if not percepts:
             return "(nothing yet)"
-        return " | ".join(
-            f"[escalated] {p.summary}" if p.escalate else p.summary for p in percepts
-        )
+        return " | ".join(f"[escalated] {p.summary}" if p.escalate else p.summary for p in percepts)
 
     def _downscaled(self, window: Window) -> list:
         if not self.max_dim:

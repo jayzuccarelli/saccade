@@ -44,14 +44,11 @@ class Focus:
     def _recent_said(self, memory: Memory) -> str:
         now = time.time()
         actions = [
-            a for a in memory.episodic.recent(5, kind="action")
-            if now - a["ts"] <= self.window_s
+            a for a in memory.episodic.recent(5, kind="action") if now - a["ts"] <= self.window_s
         ]
         if not actions:
             return "(you haven't said anything recently)"
-        return "\n".join(
-            f'- {int(now - a["ts"])}s ago: "{a.get("message", "")}"' for a in actions
-        )
+        return "\n".join(f'- {int(now - a["ts"])}s ago: "{a.get("message", "")}"' for a in actions)
 
     async def reason(self, percept: Percept, window: Window, memory: Memory) -> Decision:
         prompt = PROMPT.format(
