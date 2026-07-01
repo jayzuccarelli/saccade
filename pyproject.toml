@@ -25,6 +25,8 @@ gemini = ["google-genai"]
 openai = ["openai"]
 anthropic = ["anthropic"]
 camera = ["opencv-python-headless"]
+screen = ["mss"]
+audio = ["sounddevice"]
 
 [project.urls]
 Homepage = "https://github.com/jayzuccarelli/saccade"
