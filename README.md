@@ -132,6 +132,30 @@ common combo (private always-on, paid SOTA only when something escalates).
 python -m saccade snapshot photo.jpg
 ```
 
+**See what's plugged into this machine.** Enumerates cameras, screens, mics,
+and audio outputs — copy the printed env line straight into `.env`:
+
+```bash
+python -m saccade devices
+```
+
+**Point it at your laptop webcam** (Mac / Linux / Windows — cv2 picks the OS backend):
+
+```bash
+uv pip install saccade[camera]
+SACCADE_SENSOR=webcam python -m saccade
+# SACCADE_WEBCAM_INDEX=1 if you have more than one cam
+```
+
+**Point it at your screen** (watch what you're doing — useful for coding-agent
+side-cars, meeting notes, "did I actually close that tab"):
+
+```bash
+uv pip install saccade[screen]
+SACCADE_SENSOR=screen SACCADE_SCREEN_INDEX=1 python -m saccade
+# index 1 = primary monitor; `saccade devices` lists them all
+```
+
 **Point it at an RTSP camera** (Reolink or anything that speaks RTSP). Give the
 parts and saccade assembles + URL-encodes the URL — a password with `@ : / #`
 won't break it:
@@ -153,7 +177,8 @@ and fill it in. saccade auto-loads it, so `python -m saccade` just works.
 | Path | What |
 |---|---|
 | `schema.py` | the contracts: Frame, Window, Percept, Decision |
-| `sensors/` | input streams — `stub`, `reolink` (Protocol in `base.py`) |
+| `sensors/` | input streams — `stub`, `webcam`, `screen`, `reolink`, `replay` (Protocol in `base.py`) |
+| `devices.py` | `python -m saccade devices` — enumerate cameras/screens/mics/audio-outs |
 | `backends/` | swappable models — `stub`, `ollama` (local, stdlib), `gemini`, `openai`, `anthropic` (the only files that touch a model SDK) |
 | `speakers/` | swappable output — `print` (default), `gemini_tts` (synthesize to wav), `home_assistant` (example of a remote-output speaker) |
 | `glance.py` | cheap peripheral perceiver → Percept |
