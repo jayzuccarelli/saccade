@@ -24,6 +24,14 @@ from saccade.schema import Frame, Window
 
 
 def make_sensor(c: Config):
+    if c.sensor == "webcam":
+        from saccade.sensors.webcam import WebcamSensor
+
+        return WebcamSensor(c.webcam_index, c.capture_fps)
+    if c.sensor == "screen":
+        from saccade.sensors.screen import ScreenSensor
+
+        return ScreenSensor(c.screen_index, c.capture_fps)
     if c.sensor == "reolink":
         from saccade.sensors.reolink import ReolinkSensor
 
@@ -142,7 +150,11 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) >= 3 and sys.argv[1] == "snapshot":
+    if len(sys.argv) >= 2 and sys.argv[1] == "devices":
+        from saccade.devices import main as devices_main
+
+        devices_main()
+    elif len(sys.argv) >= 3 and sys.argv[1] == "snapshot":
         asyncio.run(snapshot(sys.argv[2]))
     else:
         asyncio.run(main())

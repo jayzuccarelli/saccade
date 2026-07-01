@@ -57,8 +57,10 @@ _autoload_dotenv()  # before the dataclass: its field defaults read os.environ
 
 @dataclass
 class Config:
-    # Sensor: "stub" (scripted), "reolink" (RTSP), or "replay" (folder of images)
+    # Sensor: "stub", "webcam" (local cam), "reolink" (RTSP), or "replay" (folder)
     sensor: str = os.environ.get("SACCADE_SENSOR", "stub")
+    webcam_index: int = int(os.environ.get("SACCADE_WEBCAM_INDEX", "0"))
+    screen_index: int = int(os.environ.get("SACCADE_SCREEN_INDEX", "1"))
     rtsp_url: str = os.environ.get("SACCADE_RTSP_URL", "")
     # Or give the parts and let saccade assemble + URL-encode the URL — so a
     # password with @ : / # symbols can't break it and creds stay out of shell
