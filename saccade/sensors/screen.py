@@ -3,7 +3,11 @@
     SACCADE_SENSOR=screen SACCADE_SCREEN_INDEX=1 python -m saccade
 
 Index 1 = primary monitor, 2 = second monitor, etc. (0 = all combined).
-mss is imported lazily; install with `uv pip install saccade[screen]`.
+mss is imported lazily; install with `uv pip install -e '.[screen]'`.
+
+macOS: grant Screen Recording to your terminal app (System Settings >
+Privacy & Security) — without it mss silently captures wallpaper-only frames.
+
 """
 
 from __future__ import annotations

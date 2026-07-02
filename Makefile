@@ -2,4 +2,4 @@
 .PHONY: check
 check:
 	uv run ruff check .
-	uv run --with pytest python -m pytest -q
+	uv run --with pytest --with pillow python -m pytest -q

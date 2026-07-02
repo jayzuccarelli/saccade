@@ -9,6 +9,7 @@ imported lazily so the rest of the harness runs without opencv installed.
 from __future__ import annotations
 
 import asyncio
+import re
 import threading
 import time
 
@@ -25,7 +26,9 @@ class ReolinkSensor:
 
         cap = cv2.VideoCapture(self.rtsp_url)
         if not cap.isOpened():
-            raise RuntimeError(f"could not open RTSP stream: {self.rtsp_url}")
+            # Redact userinfo — this message lands in terminals and bug reports.
+            redacted = re.sub(r"//[^@/]+@", "//***@", self.rtsp_url)
+            raise RuntimeError(f"could not open RTSP stream: {redacted}")
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
         # A reader thread consumes frames as fast as the camera sends them (~15-20fps)
@@ -68,4 +71,7 @@ class ReolinkSensor:
                     yield Frame(ts=time.time(), image=buf.tobytes(), mime="image/jpeg")
         finally:
             stop.set()
+            # Let the reader leave cap.read() before releasing — releasing under
+            # a blocked read is a use-after-free in OpenCV's FFmpeg backend.
+            reader.join(timeout=2)
             cap.release()

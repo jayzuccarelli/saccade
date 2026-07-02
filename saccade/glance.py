@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from saccade.backends.base import Backend
-from saccade.imageutil import downscale_jpeg
+from saccade.imageutil import downscale
 from saccade.memory import Memory
 from saccade.schema import PERCEPT_SCHEMA, Percept, Window, percept_from
 
@@ -53,12 +53,11 @@ class Glance:
     def _downscaled(self, window: Window) -> list:
         if not self.max_dim:
             return window.frames
-        return [
-            replace(f, image=downscale_jpeg(f.image, self.max_dim))
-            if f.image and f.mime == "image/jpeg"
-            else f
-            for f in window.frames
-        ]
+        out = []
+        for f in window.frames:
+            shrunk = downscale(f.image, self.max_dim) if f.image else None
+            out.append(replace(f, image=shrunk[0], mime=shrunk[1]) if shrunk else f)
+        return out
 
     async def perceive(self, window: Window, memory: Memory) -> Percept:
         prompt = PROMPT.format(recent=self._recent(memory))
