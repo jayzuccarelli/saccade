@@ -17,6 +17,19 @@ def test_apply_dotenv_parses_and_unquotes(tmp_path, monkeypatch):
     assert os.environ["SACCADE_FOO"] == "bar"
 
 
+def test_apply_dotenv_strips_trailing_comments_on_unquoted_values(tmp_path, monkeypatch):
+    monkeypatch.delenv("SACCADE_PATH", raising=False)
+    monkeypatch.delenv("SACCADE_HASH", raising=False)
+    env = tmp_path / ".env"
+    env.write_text(
+        "SACCADE_PATH=/h264Preview_01_sub   # _sub = low-res\n"
+        'SACCADE_HASH="a # inside quotes survives"\n'
+    )
+    parsed = _apply_dotenv(str(env))
+    assert parsed["SACCADE_PATH"] == "/h264Preview_01_sub"  # comment never joins the value
+    assert parsed["SACCADE_HASH"] == "a # inside quotes survives"
+
+
 def test_apply_dotenv_does_not_clobber_real_env(tmp_path, monkeypatch):
     monkeypatch.setenv("SACCADE_FOO", "from-real-env")
     env = tmp_path / ".env"

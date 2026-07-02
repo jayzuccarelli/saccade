@@ -1,4 +1,4 @@
-"""Gemini backend. Default models: Glance = 2.5 Flash-Lite, Focus = 3.5 Flash.
+"""Gemini backend. Defaults per tier live in DEFAULT_MODELS in __main__.py.
 
 Lazy import of google-genai so the harness runs without it. Validated live end
 to end — RTSP camera → Glance @ 1Hz → Focus → TTS.

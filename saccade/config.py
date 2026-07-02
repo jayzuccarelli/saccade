@@ -31,6 +31,11 @@ def _apply_dotenv(path: str) -> dict[str, str]:
         key, val = key.strip(), val.strip()
         if len(val) >= 2 and val[0] == val[-1] and val[0] in "\"'":
             val = val[1:-1]  # unquote
+        else:
+            # python-dotenv semantics: an unquoted value ends at ` #` — otherwise
+            # a trailing comment silently becomes part of the value (e.g. an RTSP
+            # path that can never connect). Quote the value to keep a literal #.
+            val = val.split(" #", 1)[0].rstrip()
         parsed[key] = val
         os.environ.setdefault(key, val)
     return parsed
@@ -57,7 +62,7 @@ _autoload_dotenv()  # before the dataclass: its field defaults read os.environ
 
 @dataclass
 class Config:
-    # Sensor: "stub", "webcam" (local cam), "reolink" (RTSP), or "replay" (folder)
+    # Sensor: "stub", "webcam" (local cam), "screen", "reolink" (RTSP), or "replay" (folder)
     sensor: str = os.environ.get("SACCADE_SENSOR", "stub")
     webcam_index: int = int(os.environ.get("SACCADE_WEBCAM_INDEX", "0"))
     screen_index: int = int(os.environ.get("SACCADE_SCREEN_INDEX", "1"))

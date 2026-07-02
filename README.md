@@ -93,6 +93,11 @@ python -m saccade
 You'll see Glance/Percept/Focus output in the terminal. That's the whole loop,
 just with a stub model and a scripted sensor.
 
+The sections below swap in real models — pair them with a real sensor
+(`SACCADE_SENSOR=webcam` / `screen` / `reolink`, further down) or sanity-check
+one image with `python -m saccade snapshot pic.jpg`. With no sensor set, the
+scripted stub feeds a real model no images (saccade warns if you try).
+
 **Go local, private, free with Ollama** (recommended for the always-on Glance
 tier — no API bill, no rate limits, frames never leave your machine):
 
@@ -133,7 +138,7 @@ python -m saccade snapshot photo.jpg
 ```
 
 **See what's plugged into this machine.** Enumerates cameras, screens, mics,
-and audio outputs — copy the printed env line straight into `.env`:
+and audio outputs — the `.env lines:` under each section paste verbatim into `.env`:
 
 ```bash
 python -m saccade devices
@@ -142,26 +147,33 @@ python -m saccade devices
 **Point it at your laptop webcam** (Mac / Linux / Windows — cv2 picks the OS backend):
 
 ```bash
-uv pip install saccade[camera]
+uv pip install -e '.[camera]'
 SACCADE_SENSOR=webcam python -m saccade
 # SACCADE_WEBCAM_INDEX=1 if you have more than one cam
 ```
+
+macOS: grant Camera access to your terminal app (System Settings > Privacy &
+Security > Camera) — approve the prompt on first run, then rerun.
 
 **Point it at your screen** (watch what you're doing — useful for coding-agent
 side-cars, meeting notes, "did I actually close that tab"):
 
 ```bash
-uv pip install saccade[screen]
+uv pip install -e '.[screen]'
 SACCADE_SENSOR=screen SACCADE_SCREEN_INDEX=1 python -m saccade
 # index 1 = primary monitor; `saccade devices` lists them all
 ```
+
+macOS: grant Screen Recording to your terminal app (System Settings > Privacy &
+Security > Screen Recording) and restart the terminal — without it, mss silently
+captures wallpaper-only frames and the agent watches nothing.
 
 **Point it at an RTSP camera** (Reolink or anything that speaks RTSP). Give the
 parts and saccade assembles + URL-encodes the URL — a password with `@ : / #`
 won't break it:
 
 ```bash
-uv pip install opencv-python-headless
+uv pip install -e '.[camera]'
 SACCADE_SENSOR=reolink \
   SACCADE_RTSP_USER=admin SACCADE_RTSP_PASSWORD='your-pass' \
   SACCADE_RTSP_HOST=192.0.2.217:554 SACCADE_RTSP_PATH=/h264Preview_01_sub \
