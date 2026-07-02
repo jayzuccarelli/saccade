@@ -14,13 +14,14 @@ from __future__ import annotations
 import asyncio
 import sys
 import time
+from typing import TYPE_CHECKING
 
-from saccade import loop as looplib
-from saccade.config import Config
-from saccade.focus import Focus
-from saccade.glance import Glance
-from saccade.memory import Memory
-from saccade.schema import Frame, Window
+if TYPE_CHECKING:
+    from saccade.config import Config
+
+# saccade imports live inside the functions below: importing config parses env
+# vars, so `saccade devices` must not trigger it — it's the tool you reach for
+# when your .env is broken.
 
 
 def make_sensor(c: Config):
@@ -104,6 +105,12 @@ def make_speaker(c: Config):
 async def snapshot(path: str) -> None:
     """Run one image through Glance (and Focus if it escalates). The fastest way
     to see a real Percept the moment a key is wired: `python -m saccade snapshot pic.jpg`."""
+    from saccade.config import Config
+    from saccade.focus import Focus
+    from saccade.glance import Glance
+    from saccade.memory import Memory
+    from saccade.schema import Frame, Window
+
     c = Config()
     with open(path, "rb") as f:
         data = f.read()
@@ -124,7 +131,19 @@ async def snapshot(path: str) -> None:
 
 
 async def main() -> None:
+    from saccade import loop as looplib
+    from saccade.config import Config
+    from saccade.focus import Focus
+    from saccade.glance import Glance
+    from saccade.memory import Memory
+
     c = Config()
+    if c.sensor == "stub" and (c.glance_backend != "stub" or c.focus_backend != "stub"):
+        print(
+            "note: SACCADE_SENSOR is unset, so the stub sensor is feeding the real "
+            "model no images.\nPoint it at something: SACCADE_SENSOR=webcam / screen / "
+            "reolink, or try `python -m saccade snapshot pic.jpg`.\n"
+        )
     sensor = make_sensor(c)
     glance = Glance(make_backend(c.glance_backend, "glance", c), max_dim=c.glance_max_dim)
     focus = Focus(make_backend(c.focus_backend, "focus", c), c.recent_said_window_s)
@@ -149,12 +168,31 @@ async def main() -> None:
     )
 
 
-if __name__ == "__main__":
-    if len(sys.argv) >= 2 and sys.argv[1] == "devices":
+USAGE = """usage: saccade [command]
+
+  (no command)      run the ambient loop (sensor/models/speaker from env or .env)
+  devices           list cameras, screens, mics, and audio outputs
+  snapshot <image>  run one image through Glance (and Focus if it escalates)"""
+
+
+def cli() -> None:
+    """Sync entry point — both `python -m saccade` and the installed `saccade`
+    script land here. Unknown input gets usage, not the infinite loop."""
+    argv = sys.argv[1:]
+    if not argv:
+        asyncio.run(main())
+    elif argv[0] in ("-h", "--help"):
+        print(USAGE)
+    elif argv[0] == "devices":
         from saccade.devices import main as devices_main
 
         devices_main()
-    elif len(sys.argv) >= 3 and sys.argv[1] == "snapshot":
-        asyncio.run(snapshot(sys.argv[2]))
+    elif argv[0] == "snapshot" and len(argv) == 2:
+        asyncio.run(snapshot(argv[1]))
     else:
-        asyncio.run(main())
+        print(USAGE, file=sys.stderr)
+        raise SystemExit(2)
+
+
+if __name__ == "__main__":
+    cli()
