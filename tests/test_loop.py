@@ -139,3 +139,78 @@ def test_run_survives_a_failing_backend(tmp_path):
         looplib.run(sensor, glance, focus, _mem(tmp_path), on_action=actions.append, glance_fps=0)
     )
     assert actions == []  # glance kept failing; no crash, no action
+
+
+class _SlowFocusBackend:
+    """A Focus that blocks until released — stands in for a slow big model."""
+
+    def __init__(self):
+        self.entered = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def complete(self, prompt, frames, schema=None):
+        self.entered.set()
+        await self.release.wait()
+        return '{"reasoning":"r","speak":true,"message":"hi"}'
+
+
+def test_run_concurrent_focus_completes_backgrounded_action(tmp_path):
+    """A Focus spawned in the background must still run its action to completion
+    before run() returns — the shutdown drains the in-flight task."""
+    slow = _SlowFocusBackend()
+
+    class _Sensor:
+        async def stream(self):
+            yield Frame(ts=0.0, meta={"scene": "the mug is empty"})
+            # give the spawned Focus a turn to start, then let it finish
+            await slow.entered.wait()
+            slow.release.set()
+
+    actions = []
+    asyncio.run(
+        looplib.run(
+            _Sensor(),
+            Glance(StubBackend("glance")),
+            Focus(slow),
+            _mem(tmp_path),
+            on_action=actions.append,
+            glance_fps=0,
+            concurrent_focus=True,
+        )
+    )
+    assert actions == ["hi"]  # backgrounded Focus was drained and spoke
+
+
+def test_concurrent_focus_is_single_slot(tmp_path):
+    """While one Focus is in flight, further escalations don't stack a second —
+    Glance keeps observing but only one Focus runs at a time."""
+    slow = _SlowFocusBackend()
+    starts = {"n": 0}
+    orig = slow.complete
+
+    async def counting(*a, **k):
+        starts["n"] += 1
+        return await orig(*a, **k)
+
+    slow.complete = counting
+
+    class _Sensor:
+        async def stream(self):
+            # three escalating frames back-to-back while Focus is blocked
+            for _ in range(3):
+                yield Frame(ts=0.0, meta={"scene": "the mug is empty"})
+            await slow.entered.wait()
+            slow.release.set()
+
+    asyncio.run(
+        looplib.run(
+            _Sensor(),
+            Glance(StubBackend("glance")),
+            Focus(slow),
+            _mem(tmp_path),
+            on_action=[].append,
+            glance_fps=0,
+            concurrent_focus=True,
+        )
+    )
+    assert starts["n"] == 1  # only one Focus ran despite three escalations

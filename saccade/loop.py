@@ -1,12 +1,16 @@
-"""The orchestrator. Two coroutines running in parallel, like the brain:
+"""The orchestrator. Coroutines running in parallel, like the brain:
 
   capture     — continuously fills the sensory buffer at the sensor's rate
   glance loop — samples the buffer on its own (glance_fps) clock and reasons
+  focus       — with concurrent_focus, a salient frame spawns a background
+                Focus so Glance never goes blind while the big model reasons
 
-Perception never pauses while the model thinks. If glance_fps >= capture_fps,
-every captured frame gets glanced (lockstep — good for replay). If it's lower
-(e.g. rate-limited live), the loop samples the latest while the buffer still
-holds a dense clip for Focus.
+Perception never pauses while the model thinks. Capture never blocks on Glance;
+with concurrent_focus, Glance never blocks on Focus (single-slot — one Focus at
+a time, so slow reasoning doesn't stack interruptions). If glance_fps >=
+capture_fps, every captured frame gets glanced (lockstep — good for replay). If
+it's lower (e.g. rate-limited live), the loop samples the latest while the buffer
+still holds a dense clip for Focus.
 """
 
 from __future__ import annotations
@@ -42,23 +46,30 @@ def _next_interval(percept: Percept | None, floor: float, ceiling: float, adapti
     return max(floor, min(percept.next_glance_s, ceiling))
 
 
-async def _tick(
-    glance: Glance,
-    focus: Focus,
-    memory: Memory,
-    focus_clip_frames: int,
-    on_action: Action,
-) -> Percept | None:
-    """One glance at the latest frame; if salient, one focused look at a clip,
-    and maybe act. Returns the Percept (for pacing) or None if the buffer's empty.
-    Pure function of the buffer's current state — easy to test."""
+async def _glance(glance: Glance, memory: Memory) -> Percept | None:
+    """Sample the latest frame and observe a Percept. Returns None if the buffer's
+    empty. The cheap, serial half of a tick — always runs on the glance clock."""
     latest = memory.sensory.recent(1)
     if not latest:
         return None
     percept = await glance.perceive(Window(frames=latest), memory)
     memory.observe(percept)
     _log(percept)
-    if percept.escalate:
+    return percept
+
+
+async def _focus_act(
+    focus: Focus,
+    memory: Memory,
+    percept: Percept,
+    focus_clip_frames: int,
+    on_action: Action,
+) -> None:
+    """The expensive half: reason over a clip and maybe speak. Can be slow (the
+    big model), so run() may run this concurrently while Glance keeps watching.
+    It owns its own resilience — a failure here must never take down the loop or
+    surface as an unretrieved task exception."""
+    try:
         clip = memory.sensory.recent(focus_clip_frames)
         decision = await focus.reason(percept, Window(frames=clip), memory)
         # Log every verdict, not just spoken ones — otherwise deliberate silence
@@ -71,6 +82,23 @@ async def _tick(
             result = on_action(decision.message)
             if inspect.isawaitable(result):
                 await result
+    except Exception as e:  # noqa: BLE001 — a bad Focus must not kill the agent
+        print(f"[focus]  skipped: {type(e).__name__}: {e}")
+
+
+async def _tick(
+    glance: Glance,
+    focus: Focus,
+    memory: Memory,
+    focus_clip_frames: int,
+    on_action: Action,
+) -> Percept | None:
+    """One glance, and — if salient — a focused look, inline (serial). Returns the
+    Percept (for pacing) or None if the buffer's empty. run() uses this for the
+    non-concurrent path; it's also the easy-to-test unit of loop behavior."""
+    percept = await _glance(glance, memory)
+    if percept and percept.escalate:
+        await _focus_act(focus, memory, percept, focus_clip_frames, on_action)
     return percept
 
 
@@ -84,9 +112,11 @@ async def run(
     focus_clip_frames: int = 6,
     adaptive_cadence: bool = False,
     glance_max_interval: float = 15.0,
+    concurrent_focus: bool = False,
 ) -> None:
     floor = 1.0 / glance_fps if glance_fps > 0 else 0.0
     stream_done = asyncio.Event()
+    focus_task: asyncio.Task | None = None  # single in-flight Focus (concurrent mode)
 
     async def capture() -> None:
         # Never pauses while the model thinks — keeps the buffer current.
@@ -102,7 +132,18 @@ async def run(
             # Resilience: one flaky call/response skips a tick, never kills the agent.
             percept = None
             try:
-                percept = await _tick(glance, focus, memory, focus_clip_frames, on_action)
+                if concurrent_focus:
+                    # Glance stays on its clock; a salient frame kicks off Focus in
+                    # the background so perception never goes blind while it reasons.
+                    # Single-slot: if a Focus is still running, keep watching rather
+                    # than stacking interruptions — Glance still observes the frames.
+                    percept = await _glance(glance, memory)
+                    if percept and percept.escalate and (focus_task is None or focus_task.done()):
+                        focus_task = asyncio.create_task(
+                            _focus_act(focus, memory, percept, focus_clip_frames, on_action)
+                        )
+                else:
+                    percept = await _tick(glance, focus, memory, focus_clip_frames, on_action)
             except Exception as e:  # noqa: BLE001 — resilience is the whole point here
                 print(f"[loop] skipped a tick: {type(e).__name__}: {e}")
             if stream_done.is_set() and capture_task.done():
@@ -112,3 +153,7 @@ async def run(
         capture_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await capture_task  # re-raises a real sensor error (e.g. camera won't open)
+        # Let an in-flight Focus finish speaking before we exit (it's one model
+        # call + one action, not an unbounded loop). _focus_act never raises.
+        if focus_task is not None:
+            await focus_task
