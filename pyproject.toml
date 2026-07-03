@@ -28,6 +28,11 @@ camera = ["opencv-python-headless", "pillow"]
 screen = ["mss", "pillow"]
 audio = ["sounddevice"]
 
+[dependency-groups]
+# uv run includes this group by default, so `make check` works on a bare
+# machine (and in CI) without pillow's image tests silently skipping.
+dev = ["ruff", "pytest", "pillow"]
+
 [project.urls]
 Homepage = "https://github.com/jayzuccarelli/saccade"
 Issues = "https://github.com/jayzuccarelli/saccade/issues"
