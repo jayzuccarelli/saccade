@@ -1,16 +1,25 @@
-name: tests
+# Runs the same gate as local `make check` — ruff + full pytest, with pillow
+# installed so the image tests can't silently skip.
+name: check
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, python: "3.10" } # requires-python floor
+          - { os: ubuntu-latest, python: "3.12" }
+          - { os: macos-latest, python: "3.12" } # the platform saccade actually runs on
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.11"
-      - run: pip install pytest
-      - run: python -m pytest -q
+          python-version: ${{ matrix.python }}
+      - run: make check
