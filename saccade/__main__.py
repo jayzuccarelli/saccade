@@ -33,6 +33,10 @@ def make_sensor(c: Config):
         from saccade.sensors.screen import ScreenSensor
 
         return ScreenSensor(c.screen_index, c.capture_fps)
+    if c.sensor == "mic":
+        from saccade.sensors.mic import MicSensor
+
+        return MicSensor(c.mic_index if c.mic_index >= 0 else None, c.capture_fps)
     if c.sensor == "reolink":
         from saccade.sensors.reolink import ReolinkSensor
 
@@ -102,9 +106,22 @@ def make_speaker(c: Config):
     return PrintSpeaker()
 
 
+# A file extension -> its audio MIME. Anything else is treated as an image.
+AUDIO_MIMES = {
+    ".wav": "audio/wav",
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".aac": "audio/aac",
+    ".ogg": "audio/ogg",
+    ".flac": "audio/flac",
+}
+
+
 async def snapshot(path: str) -> None:
-    """Run one image through Glance (and Focus if it escalates). The fastest way
-    to see a real Percept the moment a key is wired: `python -m saccade snapshot pic.jpg`."""
+    """Run one image or audio clip through Glance (and Focus if it escalates). The
+    fastest way to see a real Percept the moment a key is wired:
+    `python -m saccade snapshot pic.jpg` or `... snapshot clip.wav` (audio needs
+    the gemini backend)."""
     from saccade.config import Config
     from saccade.focus import Focus
     from saccade.glance import Glance
@@ -114,8 +131,13 @@ async def snapshot(path: str) -> None:
     c = Config()
     with open(path, "rb") as f:
         data = f.read()
-    mime = "image/png" if path.lower().endswith(".png") else "image/jpeg"
-    frame = Frame(ts=time.time(), image=data, mime=mime)
+    lower = path.lower()
+    audio_mime = next((m for ext, m in AUDIO_MIMES.items() if lower.endswith(ext)), None)
+    if audio_mime:
+        frame = Frame(ts=time.time(), audio=data, audio_mime=audio_mime)
+    else:
+        mime = "image/png" if lower.endswith(".png") else "image/jpeg"
+        frame = Frame(ts=time.time(), image=data, mime=mime)
     window = Window(frames=[frame])
     glance = Glance(make_backend(c.glance_backend, "glance", c), max_dim=c.glance_max_dim)
     focus = Focus(make_backend(c.focus_backend, "focus", c), c.recent_said_window_s)
@@ -172,7 +194,7 @@ USAGE = """usage: saccade [command]
 
   (no command)      run the ambient loop (sensor/models/speaker from env or .env)
   devices           list cameras, screens, mics, and audio outputs
-  snapshot <image>  run one image through Glance (and Focus if it escalates)"""
+  snapshot <file>   run one image or audio clip through Glance (then Focus if salient)"""
 
 
 def cli() -> None:

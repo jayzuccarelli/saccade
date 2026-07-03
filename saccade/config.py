@@ -62,9 +62,12 @@ _autoload_dotenv()  # before the dataclass: its field defaults read os.environ
 
 @dataclass
 class Config:
-    # Sensor: "stub", "webcam" (local cam), "screen", "reolink" (RTSP), or "replay" (folder)
+    # Sensor: "stub", "webcam" (local cam), "screen", "mic" (local mic), "reolink"
+    # (RTSP), or "replay" (folder)
     sensor: str = os.environ.get("SACCADE_SENSOR", "stub")
     webcam_index: int = int(os.environ.get("SACCADE_WEBCAM_INDEX", "0"))
+    # Mic input device; -1 = system default (see `saccade devices` for indices).
+    mic_index: int = int(os.environ.get("SACCADE_MIC_INDEX", "-1"))
     screen_index: int = int(os.environ.get("SACCADE_SCREEN_INDEX", "1"))
     rtsp_url: str = os.environ.get("SACCADE_RTSP_URL", "")
     # Or give the parts and let saccade assemble + URL-encode the URL — so a

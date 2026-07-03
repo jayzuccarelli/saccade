@@ -36,6 +36,8 @@ class GeminiBackend:
         for f in frames:
             if f.image:
                 contents.append(types.Part.from_bytes(data=f.image, mime_type=f.mime))
+            if f.audio:
+                contents.append(types.Part.from_bytes(data=f.audio, mime_type=f.audio_mime))
         config = None
         if schema:
             config = types.GenerateContentConfig(

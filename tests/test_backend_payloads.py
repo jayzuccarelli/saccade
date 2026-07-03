@@ -13,6 +13,7 @@ import pytest
 from saccade.schema import PERCEPT_SCHEMA, Frame
 
 _IMG = Frame(ts=0.0, image=b"\xff\xd8jpegbytes", mime="image/jpeg")
+_AUD = Frame(ts=0.0, audio=b"RIFFwavbytes", audio_mime="audio/wav")
 
 
 def test_gemini_passes_json_schema_and_image():
@@ -32,6 +33,19 @@ def test_gemini_passes_json_schema_and_image():
     kwargs = client.aio.models.generate_content.call_args.kwargs
     assert kwargs["config"].response_json_schema == PERCEPT_SCHEMA
     assert len(kwargs["contents"]) == 2  # prompt + one image part
+
+
+def test_gemini_sends_audio_part():
+    pytest.importorskip("google.genai")
+    from saccade.backends.gemini import GeminiBackend
+
+    resp = MagicMock(text="{}")
+    client = MagicMock()
+    client.aio.models.generate_content = AsyncMock(return_value=resp)
+    with patch("google.genai.Client", return_value=client):
+        asyncio.run(GeminiBackend("m", api_key="k").complete("hi", [_AUD]))
+    contents = client.aio.models.generate_content.call_args.kwargs["contents"]
+    assert len(contents) == 2  # prompt + one audio part (mic-only frame)
 
 
 def test_openai_uses_response_format_json_schema():

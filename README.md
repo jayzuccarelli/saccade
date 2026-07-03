@@ -168,6 +168,22 @@ macOS: grant Screen Recording to your terminal app (System Settings > Privacy &
 Security > Screen Recording) and restart the terminal — without it, mss silently
 captures wallpaper-only frames and the agent watches nothing.
 
+**Let it hear** (local microphone). Each tick records a short clip and sends it
+to the model, so the agent reacts to sound, not just sight:
+
+```bash
+uv pip install -e '.[audio]'
+SACCADE_SENSOR=mic SACCADE_GLANCE_BACKEND=gemini SACCADE_FOCUS_BACKEND=gemini \
+  GEMINI_API_KEY=... python -m saccade
+# SACCADE_MIC_INDEX=1 to pick a device; -1 (default) uses the system mic
+# no hardware? test hearing on a file: python -m saccade snapshot clip.wav
+```
+
+Hearing needs an audio-capable backend — **gemini** today. Anthropic and Ollama
+(gemma) are vision-only; OpenAI needs a dedicated audio model. Linux also needs
+PortAudio (`sudo apt install libportaudio2`); it's bundled in the Mac/Windows
+wheels.
+
 **Point it at an RTSP camera** (Reolink or anything that speaks RTSP). Give the
 parts and saccade assembles + URL-encodes the URL — a password with `@ : / #`
 won't break it:
@@ -189,7 +205,7 @@ and fill it in. saccade auto-loads it, so `python -m saccade` just works.
 | Path | What |
 |---|---|
 | `schema.py` | the contracts: Frame, Window, Percept, Decision |
-| `sensors/` | input streams — `stub`, `webcam`, `screen`, `reolink`, `replay` (Protocol in `base.py`) |
+| `sensors/` | input streams — `stub`, `webcam`, `screen`, `mic`, `reolink`, `replay` (Protocol in `base.py`) |
 | `devices.py` | `python -m saccade devices` — enumerate cameras/screens/mics/audio-outs |
 | `backends/` | swappable models — `stub`, `ollama` (local, stdlib), `gemini`, `openai`, `anthropic` (the only files that touch a model SDK) |
 | `speakers/` | swappable output — `print` (default), `gemini_tts` (synthesize to wav), `home_assistant` (example of a remote-output speaker) |
@@ -286,6 +302,7 @@ Next:
 - **Adaptive cadence.** Let Glance emit how soon to look again — quiet scene =
   seconds, action = every tick. Model decides the interval, not a hardcoded rule.
 - **Concurrent Focus.** Don't pause Glance while Focus reasons + acts.
-- **More sensors.** Mic, screen, anything that streams.
+- **More sensors.** Fuse mic + camera into one frame; anything that streams.
+- **Mic output routing.** Pick which speaker/room the voice lands in per device.
 
 License: MIT.
