@@ -37,6 +37,12 @@ def make_sensor(c: Config):
         from saccade.sensors.mic import MicSensor
 
         return MicSensor(c.mic_index if c.mic_index >= 0 else None, c.capture_fps)
+    if c.sensor == "av":
+        from saccade.sensors.av import AVSensor
+
+        return AVSensor(
+            c.webcam_index, c.mic_index if c.mic_index >= 0 else None, c.capture_fps
+        )
     if c.sensor == "reolink":
         from saccade.sensors.reolink import ReolinkSensor
 
