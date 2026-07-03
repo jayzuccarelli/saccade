@@ -127,6 +127,41 @@ def test_ha_speaker_serves_clip_and_posts_play_media(tmp_path):
     spk._server.shutdown()
 
 
+def _stub_tts(tmp_path, **kw):
+    """A GeminiTTSSpeaker whose synthesize() writes a wav without touching the SDK."""
+    spk = GeminiTTSSpeaker("m", "Kore", str(tmp_path / "utt"), **kw)
+
+    async def fake_synthesize(text):
+        path = spk.out_dir / "clip.wav"
+        with wave.open(str(path), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(24000)
+            w.writeframes(b"\x00\x01" * 100)
+        return path
+
+    spk.synthesize = fake_synthesize
+    return spk
+
+
+def test_say_routes_to_device_when_index_set(tmp_path, monkeypatch):
+    """out_index >= 0 plays to that specific device, not the OS-default play_cmd."""
+    spk = _stub_tts(tmp_path, play_cmd="afplay", out_index=3)
+    played = {}
+    monkeypatch.setattr(spk, "_play_to_device", lambda path: played.setdefault("path", path))
+    asyncio.run(spk.say("hi"))
+    assert played["path"].name == "clip.wav"  # device playback fired
+
+
+def test_say_falls_back_to_play_cmd_without_index(tmp_path, monkeypatch):
+    """out_index -1 (default) leaves the device path alone — play_cmd/OS default."""
+    spk = _stub_tts(tmp_path, play_cmd="", out_index=-1)
+    hit = {"dev": False}
+    monkeypatch.setattr(spk, "_play_to_device", lambda path: hit.__setitem__("dev", True))
+    asyncio.run(spk.say("hi"))  # play_cmd empty -> just synthesize + print
+    assert hit["dev"] is False  # the device path must not fire
+
+
 def test_lan_ip_is_an_address():
     ip = _lan_ip()
     assert ip.count(".") == 3 and all(p.isdigit() for p in ip.split("."))

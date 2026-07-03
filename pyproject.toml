@@ -26,7 +26,7 @@ openai = ["openai"]
 anthropic = ["anthropic"]
 camera = ["opencv-python-headless", "pillow"]
 screen = ["mss", "pillow"]
-audio = ["sounddevice"]
+audio = ["sounddevice", "numpy"]  # numpy: sounddevice's rec()/play() arrays
 
 [dependency-groups]
 # uv run includes this group by default, so `make check` works on a bare
