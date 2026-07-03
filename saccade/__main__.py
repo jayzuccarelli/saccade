@@ -191,6 +191,7 @@ async def main() -> None:
         focus_clip_frames=c.focus_clip_frames,
         adaptive_cadence=c.adaptive_cadence,
         glance_max_interval=c.glance_max_interval,
+        concurrent_focus=c.concurrent_focus,
     )
 
 
