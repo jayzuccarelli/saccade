@@ -15,11 +15,14 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Frame:
-    """One captured sample from a Sensor."""
+    """One captured sample from a Sensor. A frame can carry an image, an audio
+    clip, or both — a webcam+mic sensor could fill both for the same instant."""
 
     ts: float
-    image: bytes | None = None  # JPEG bytes for vision; None for text/stub
+    image: bytes | None = None  # JPEG/PNG bytes for vision; None for audio/text/stub
     mime: str = "image/jpeg"
+    audio: bytes | None = None  # WAV bytes for hearing; None for vision/text/stub
+    audio_mime: str = "audio/wav"
     meta: dict = field(default_factory=dict)
 
 
