@@ -1137,6 +1137,9 @@ anthropic = [
     { name = "anthropic" },
 ]
 audio = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
+    { name = "numpy", version = "2.5.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "sounddevice" },
 ]
 camera = [
@@ -1166,6 +1169,7 @@ requires-dist = [
     { name = "anthropic", marker = "extra == 'anthropic'" },
     { name = "google-genai", marker = "extra == 'gemini'" },
     { name = "mss", marker = "extra == 'screen'" },
+    { name = "numpy", marker = "extra == 'audio'" },
     { name = "openai", marker = "extra == 'openai'" },
     { name = "opencv-python-headless", marker = "extra == 'camera'" },
     { name = "pillow", marker = "extra == 'camera'" },

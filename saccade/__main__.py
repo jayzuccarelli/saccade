@@ -92,7 +92,9 @@ def make_speaker(c: Config):
     if c.speaker == "gemini_tts":
         from saccade.speakers.gemini_tts import GeminiTTSSpeaker
 
-        return GeminiTTSSpeaker(c.tts_model, c.tts_voice, c.tts_dir, c.play_cmd)
+        return GeminiTTSSpeaker(
+            c.tts_model, c.tts_voice, c.tts_dir, c.play_cmd, out_index=c.audio_out_index
+        )
     if c.speaker == "home_assistant":
         from saccade.speakers.gemini_tts import GeminiTTSSpeaker
         from saccade.speakers.home_assistant import HomeAssistantSpeaker

@@ -140,10 +140,13 @@ def main() -> None:
         print("  # hearing needs an audio-capable backend: SACCADE_GLANCE_BACKEND=gemini")
     play = "afplay" if sys.platform == "darwin" else "aplay"
     _print(
-        "Audio out (played via SACCADE_PLAY_CMD; per-device routing = v0.2)",
+        "Audio out",
         outs,
         audio_hint,
-        (f"SACCADE_PLAY_CMD={play}",),
+        (
+            f"SACCADE_PLAY_CMD={play}  # OS default device, or:",
+            f"SACCADE_AUDIO_OUT_INDEX={outs[0][0] if outs else 0}  # play to a specific device",
+        ),
     )
     print()
 

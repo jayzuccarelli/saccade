@@ -117,6 +117,9 @@ class Config:
     # A command that takes a wav path and plays it (aplay/afplay/a push wrapper).
     # Empty = synthesize and save only (the watching box may have no audio out).
     play_cmd: str = os.environ.get("SACCADE_PLAY_CMD", "")
+    # Pick a specific output device by index (see `saccade devices`); -1 = OS
+    # default via play_cmd. Needs the audio extra. Wins over play_cmd when >=0.
+    audio_out_index: int = int(os.environ.get("SACCADE_AUDIO_OUT_INDEX", "-1"))
 
     # home_assistant speaker: play the clip on a media_player. saccade serves the
     # audio itself, so HA just fetches serve_host:serve_port — no HA www needed.

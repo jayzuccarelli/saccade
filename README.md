@@ -232,6 +232,10 @@ the clip (`SACCADE_TTS_DIR`, default `utterances/`) and prints where. Point
 `aplay`, `afplay`, or a wrapper that pushes audio elsewhere. `SACCADE_TTS_VOICE`
 picks the voice (default `Kore`).
 
+To play out a **specific** speaker rather than the OS default, install the audio
+extra and set `SACCADE_AUDIO_OUT_INDEX` to a device index from `saccade devices`
+— the output twin of picking a mic. It overrides `SACCADE_PLAY_CMD`.
+
 Adding a new output — a phone notification, a webhook, an MQTT message, a
 hardware actuator, a smart-home media player — is one `Speaker` class in
 `speakers/`. Nothing else changes. See `speakers/home_assistant.py` for a
