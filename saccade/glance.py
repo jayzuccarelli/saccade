@@ -21,9 +21,10 @@ Recently you saw (newest last; a line marked [escalated] is one you ALREADY flag
 for a closer look):
 {recent}
 
-Look at the current input and respond with ONLY a JSON object:
+Take in the current input — an image, a short audio clip, or both — and respond \
+with ONLY a JSON object:
 {{
-  "summary": "one short line: what you see now",
+  "summary": "one short line: what you notice now",
   "tags": ["a", "few", "labels"],
   "salience": 0.0,            // 0-1, how much this stands out as worth attention
   "escalate": false,         // true ONLY if something newly worth a closer look
