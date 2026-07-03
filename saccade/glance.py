@@ -27,14 +27,20 @@ Look at the current input and respond with ONLY a JSON object:
   "tags": ["a", "few", "labels"],
   "salience": 0.0,            // 0-1, how much this stands out as worth attention
   "escalate": false,         // true ONLY if something newly worth a closer look
-  "state_delta": "what changed vs what you recently saw"
+  "state_delta": "what changed vs what you recently saw",
+  "next_glance_s": 1.0       // how soon the next glance is worth taking (seconds)
 }}
 
 Judge change, not the static scene: someone who has simply been sitting or standing \
 there is ONE ongoing event, not a new one every second. If you already escalated an \
 ongoing situation (see the [escalated] lines above), do NOT escalate it again. \
 Escalate only when something genuinely new appears, or an ongoing thing meaningfully \
-changes — they get up, a new person enters, they start searching for something."""
+changes — they get up, a new person enters, they start searching for something.
+
+Set `next_glance_s` by how much is happening: a small value (~1s) when the scene is \
+active or changing and you want to watch closely, a larger one (up to ~15s) when it is \
+calm and static and nothing needs a quick recheck. This paces your own attention — \
+watch hard when it matters, rest when it doesn't."""
 
 
 class Glance:

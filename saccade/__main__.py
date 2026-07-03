@@ -189,6 +189,8 @@ async def main() -> None:
         on_action=speaker.say,
         glance_fps=c.glance_fps,
         focus_clip_frames=c.focus_clip_frames,
+        adaptive_cadence=c.adaptive_cadence,
+        glance_max_interval=c.glance_max_interval,
     )
 
 

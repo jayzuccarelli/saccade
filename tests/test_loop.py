@@ -8,8 +8,9 @@ from saccade import loop as looplib
 from saccade.backends.stub import StubBackend
 from saccade.focus import Focus
 from saccade.glance import Glance
+from saccade.loop import _next_interval
 from saccade.memory import Memory
-from saccade.schema import Frame
+from saccade.schema import Frame, Percept
 
 
 class _ScriptedSensor:
@@ -73,6 +74,46 @@ def test_tick_gives_focus_a_clip_not_one_frame(tmp_path):
     cap = _CapturingFocusBackend()
     asyncio.run(looplib._tick(Glance(StubBackend("glance")), Focus(cap), memory, 3, [].append))
     assert cap.n_frames == 3  # last 3 buffered frames, not just the latest
+
+
+# --- adaptive cadence: model-suggested interval, clamped ---
+
+
+def _p(next_glance_s):
+    return Percept(ts=0.0, next_glance_s=next_glance_s)
+
+
+def test_next_interval_is_fixed_floor_without_adaptive():
+    # adaptive off: the model's suggestion is ignored, cadence stays the floor.
+    assert _next_interval(_p(9.0), floor=1.0, ceiling=15.0, adaptive=False) == 1.0
+
+
+def test_next_interval_uses_suggestion_within_bounds():
+    assert _next_interval(_p(6.0), floor=1.0, ceiling=15.0, adaptive=True) == 6.0
+
+
+def test_next_interval_clamps_to_floor_and_ceiling():
+    # never faster than the floor (respects a rate limit)...
+    assert _next_interval(_p(0.2), floor=1.0, ceiling=15.0, adaptive=True) == 1.0
+    # ...and never rests longer than the ceiling.
+    assert _next_interval(_p(99.0), floor=1.0, ceiling=15.0, adaptive=True) == 15.0
+
+
+def test_next_interval_falls_back_when_no_suggestion():
+    # a stub/older model that emits no next_glance_s (0) or no percept -> floor.
+    assert _next_interval(_p(0.0), floor=2.0, ceiling=15.0, adaptive=True) == 2.0
+    assert _next_interval(None, floor=2.0, ceiling=15.0, adaptive=True) == 2.0
+
+
+def test_tick_returns_percept_for_pacing(tmp_path):
+    memory = _mem(tmp_path)
+    memory.observe_frame(Frame(ts=0.0, meta={"scene": "person typing"}))
+    percept = asyncio.run(
+        looplib._tick(
+            Glance(StubBackend("glance")), Focus(StubBackend("focus")), memory, 6, [].append
+        )
+    )
+    assert percept is not None and percept.summary  # the tick hands back what it saw
 
 
 # --- run(): parallel capture, clean shutdown, resilience ---

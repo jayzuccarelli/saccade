@@ -30,6 +30,8 @@ class StubBackend:
                     "salience": 0.8 if interesting else 0.1,
                     "escalate": interesting,
                     "state_delta": scene,
+                    # watch closely when something's up, rest when it's calm
+                    "next_glance_s": 1.0 if interesting else 8.0,
                 }
             )
         return json.dumps(

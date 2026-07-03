@@ -303,8 +303,6 @@ escalate → bigger model → audio out. Local + hosted backends, swappable sens
 + speakers, structured output, episodic memory, evals, tests.
 
 Next:
-- **Adaptive cadence.** Let Glance emit how soon to look again — quiet scene =
-  seconds, action = every tick. Model decides the interval, not a hardcoded rule.
 - **Concurrent Focus.** Don't pause Glance while Focus reasons + acts.
 - **More sensors.** Fuse mic + camera into one frame; anything that streams.
 - **Mic output routing.** Pick which speaker/room the voice lands in per device.
