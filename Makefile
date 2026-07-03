@@ -1,5 +1,7 @@
 # Canonical verify loop — `make check` is the self-grading gate for this repo.
+# Deps come from the dev dependency-group (ruff, pytest, pillow), which
+# `uv run` includes by default.
 .PHONY: check
 check:
 	uv run ruff check .
-	uv run --with pytest --with pillow python -m pytest -q
+	uv run python -m pytest -q
