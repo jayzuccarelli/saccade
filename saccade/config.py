@@ -86,6 +86,16 @@ class Config:
     # Glance downscales its input (peripheral = low acuity, saves tokens). Focus
     # always gets full resolution (it reasons carefully and runs rarely). 0 = off.
     glance_max_dim: int = int(os.environ.get("SACCADE_GLANCE_MAX_DIM", "768"))
+    # Adaptive cadence: let Glance decide how soon to look again (per its
+    # next_glance_s). It only ever slows below glance_fps, never faster — quiet
+    # scene = rest (up to glance_max_interval s), action = every tick. 0 to disable.
+    adaptive_cadence: bool = os.environ.get("SACCADE_ADAPTIVE_CADENCE", "1").lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+    glance_max_interval: float = float(os.environ.get("SACCADE_GLANCE_MAX_INTERVAL", "15.0"))
 
     # Memory buffer sizes + how many recent frames Focus sees as a clip.
     sensory_buffer: int = int(os.environ.get("SACCADE_SENSORY_BUFFER", "16"))
