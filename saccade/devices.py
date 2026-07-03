@@ -130,7 +130,14 @@ def main() -> None:
             "  # black captures? grant Screen Recording to your terminal app"
             " (System Settings > Privacy & Security)"
         )
-    _print("Mics (audio sensor lands in v0.2 — Frame is image-shaped today)", mics, audio_hint)
+    _print(
+        "Mics",
+        mics,
+        audio_hint,
+        ("SACCADE_SENSOR=mic", f"SACCADE_MIC_INDEX={mics[0][0] if mics else 0}"),
+    )
+    if mics:
+        print("  # hearing needs an audio-capable backend: SACCADE_GLANCE_BACKEND=gemini")
     play = "afplay" if sys.platform == "darwin" else "aplay"
     _print(
         "Audio out (played via SACCADE_PLAY_CMD; per-device routing = v0.2)",

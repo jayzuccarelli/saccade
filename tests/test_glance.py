@@ -58,6 +58,21 @@ def test_glance_sends_original_when_off(tmp_path):
     assert be.frames[0].image is big  # untouched
 
 
+def test_glance_passes_audio_frames_through(tmp_path):
+    """Downscaling is image-only — an audio-only frame (mic sensor) must reach the
+    backend with its clip intact, not get dropped by the shrink path."""
+    be = _CapturingBackend()
+    g = Glance(be, max_dim=768)
+    clip = b"RIFFwavbytes"
+    asyncio.run(
+        g.perceive(
+            Window(frames=[Frame(ts=0.0, audio=clip, audio_mime="audio/wav")]), _mem(tmp_path)
+        )
+    )
+    assert be.frames[0].audio is clip  # untouched
+    assert be.frames[0].image is None
+
+
 def test_glance_marks_already_escalated_percepts_in_context(tmp_path):
     """An ongoing event Glance already escalated is marked [escalated] in its
     recent context, so it has an anchor not to re-flag the same thing each tick
