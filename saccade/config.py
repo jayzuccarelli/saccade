@@ -97,6 +97,16 @@ class Config:
     )
     glance_max_interval: float = float(os.environ.get("SACCADE_GLANCE_MAX_INTERVAL", "15.0"))
 
+    # Concurrent Focus: a salient frame spawns Focus in the background so Glance
+    # keeps watching while the big model reasons (single-slot — one at a time). 0
+    # to reason inline (Glance pauses until Focus + the action finish).
+    concurrent_focus: bool = os.environ.get("SACCADE_CONCURRENT_FOCUS", "1").lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
     # Memory buffer sizes + how many recent frames Focus sees as a clip.
     sensory_buffer: int = int(os.environ.get("SACCADE_SENSORY_BUFFER", "16"))
     working_memory: int = int(os.environ.get("SACCADE_WORKING_MEMORY", "30"))

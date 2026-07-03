@@ -302,9 +302,16 @@ v0.1: end-to-end loop validated live. RTSP camera → cheap-tier judge (1Hz) →
 escalate → bigger model → audio out. Local + hosted backends, swappable sensors
 + speakers, structured output, episodic memory, evals, tests.
 
+v0.2: hearing (mic sensor), per-device speaker output, adaptive cadence (Glance
+paces its own attention), concurrent Focus (Glance keeps watching while the big
+model reasons).
+
 Next:
-- **Concurrent Focus.** Don't pause Glance while Focus reasons + acts.
-- **More sensors.** Fuse mic + camera into one frame; anything that streams.
-- **Mic output routing.** Pick which speaker/room the voice lands in per device.
+- **Fuse mic + camera** into one frame, so a glance both sees and hears the same
+  instant instead of choosing one sensor.
+- **More audio backends.** Only Gemini hears today; add others as they ship
+  native audio input.
+- **Full duplex / barge-in.** Interruptible speech — belongs with a realtime
+  streaming path, not the turn-based loop.
 
 License: MIT.
