@@ -48,6 +48,22 @@ def test_gemini_sends_audio_part():
     assert len(contents) == 2  # prompt + one audio part (mic-only frame)
 
 
+def test_gemini_sends_both_parts_for_fused_av_frame():
+    """An `av` sensor frame carries image AND audio; the backend must send both
+    so the model can reason over sight and sound in one glance."""
+    pytest.importorskip("google.genai")
+    from saccade.backends.gemini import GeminiBackend
+
+    av_frame = Frame(ts=0.0, image=b"\xff\xd8jpeg", audio=b"RIFFwav")
+    resp = MagicMock(text="{}")
+    client = MagicMock()
+    client.aio.models.generate_content = AsyncMock(return_value=resp)
+    with patch("google.genai.Client", return_value=client):
+        asyncio.run(GeminiBackend("m", api_key="k").complete("hi", [av_frame]))
+    contents = client.aio.models.generate_content.call_args.kwargs["contents"]
+    assert len(contents) == 3  # prompt + image + audio
+
+
 def test_openai_uses_response_format_json_schema():
     pytest.importorskip("openai")
     from saccade.backends.openai import OpenAIBackend

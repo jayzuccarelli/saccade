@@ -14,8 +14,9 @@ from saccade.memory import Memory
 from saccade.schema import DECISION_SCHEMA, Decision, Percept, Window, decision_from
 
 PROMPT = """You are the focused attention of an ambient assistant. Something caught \
-the periphery's eye and you are now looking closely — at a short clip of the last \
-few seconds (the images are in time order) — to decide whether to speak.
+the periphery's attention and you are now looking (and listening) closely — at a short \
+clip of the last few seconds (images in time order, plus audio if present) — to decide \
+whether to speak.
 
 What just stood out: {summary}
 Recently observed: {recent}
