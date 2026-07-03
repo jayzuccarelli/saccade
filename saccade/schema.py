@@ -40,7 +40,9 @@ class Window:
 @dataclass
 class Percept:
     """Glance's structured observation. `escalate` is the model's OWN call —
-    there is no threshold or rule outside the model."""
+    there is no threshold or rule outside the model. `next_glance_s` is likewise
+    the model's own call on how soon the next glance is worth taking (0 = no
+    suggestion; the loop falls back to its fixed cadence)."""
 
     ts: float
     summary: str = ""
@@ -48,6 +50,7 @@ class Percept:
     salience: float = 0.0
     escalate: bool = False
     state_delta: str = ""
+    next_glance_s: float = 0.0
 
 
 @dataclass
@@ -83,8 +86,9 @@ PERCEPT_SCHEMA = {
         "salience": {"type": "number"},
         "escalate": {"type": "boolean"},
         "state_delta": {"type": "string"},
+        "next_glance_s": {"type": "number"},
     },
-    "required": ["summary", "tags", "salience", "escalate", "state_delta"],
+    "required": ["summary", "tags", "salience", "escalate", "state_delta", "next_glance_s"],
     "additionalProperties": False,
 }
 
@@ -109,6 +113,7 @@ def percept_from(raw: str, ts: float) -> Percept:
         salience=float(d.get("salience", 0.0) or 0.0),
         escalate=bool(d.get("escalate", False)),
         state_delta=d.get("state_delta", ""),
+        next_glance_s=float(d.get("next_glance_s", 0.0) or 0.0),
     )
 
 

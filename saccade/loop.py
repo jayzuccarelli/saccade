@@ -27,7 +27,19 @@ Action = Callable[[str], None | Awaitable[None]]
 
 def _log(p: Percept) -> None:
     mark = "  ‼  escalate" if p.escalate else ""
-    print(f"[glance] sal={p.salience:0.1f}  {p.summary[:64]:<64}{mark}")
+    cadence = f"  ⟳{p.next_glance_s:0.0f}s" if p.next_glance_s > 0 else ""
+    print(f"[glance] sal={p.salience:0.1f}  {p.summary[:64]:<64}{mark}{cadence}")
+
+
+def _next_interval(percept: Percept | None, floor: float, ceiling: float, adaptive: bool) -> float:
+    """How long to wait before the next glance. Without adaptive cadence (or a
+    suggestion) it's the fixed floor. With it, the model's `next_glance_s` sets
+    the pace — but clamped to [floor, ceiling]: floor is the fastest rate (the
+    configured glance_fps, which may exist to respect a rate limit), ceiling caps
+    how long we'll rest on a calm scene. Adaptive only ever slows us down."""
+    if not adaptive or percept is None or percept.next_glance_s <= 0:
+        return floor
+    return max(floor, min(percept.next_glance_s, ceiling))
 
 
 async def _tick(
@@ -36,12 +48,13 @@ async def _tick(
     memory: Memory,
     focus_clip_frames: int,
     on_action: Action,
-) -> None:
+) -> Percept | None:
     """One glance at the latest frame; if salient, one focused look at a clip,
-    and maybe act. Pure function of the buffer's current state — easy to test."""
+    and maybe act. Returns the Percept (for pacing) or None if the buffer's empty.
+    Pure function of the buffer's current state — easy to test."""
     latest = memory.sensory.recent(1)
     if not latest:
-        return
+        return None
     percept = await glance.perceive(Window(frames=latest), memory)
     memory.observe(percept)
     _log(percept)
@@ -58,6 +71,7 @@ async def _tick(
             result = on_action(decision.message)
             if inspect.isawaitable(result):
                 await result
+    return percept
 
 
 async def run(
@@ -68,8 +82,10 @@ async def run(
     on_action: Action = print,
     glance_fps: float = 1.0,
     focus_clip_frames: int = 6,
+    adaptive_cadence: bool = False,
+    glance_max_interval: float = 15.0,
 ) -> None:
-    interval = 1.0 / glance_fps if glance_fps > 0 else 0.0
+    floor = 1.0 / glance_fps if glance_fps > 0 else 0.0
     stream_done = asyncio.Event()
 
     async def capture() -> None:
@@ -84,13 +100,14 @@ async def run(
     try:
         while True:
             # Resilience: one flaky call/response skips a tick, never kills the agent.
+            percept = None
             try:
-                await _tick(glance, focus, memory, focus_clip_frames, on_action)
+                percept = await _tick(glance, focus, memory, focus_clip_frames, on_action)
             except Exception as e:  # noqa: BLE001 — resilience is the whole point here
                 print(f"[loop] skipped a tick: {type(e).__name__}: {e}")
             if stream_done.is_set() and capture_task.done():
                 break
-            await asyncio.sleep(interval)
+            await asyncio.sleep(_next_interval(percept, floor, glance_max_interval, adaptive_cadence))
     finally:
         capture_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):

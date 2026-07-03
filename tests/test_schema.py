@@ -13,6 +13,17 @@ def test_percept_parses_clean_json():
     assert p.tags == ["a"]
 
 
+def test_percept_parses_next_glance_cadence():
+    p = percept_from('{"summary":"busy","next_glance_s":2.5}', 1.0)
+    assert p.next_glance_s == 2.5
+
+
+def test_percept_next_glance_defaults_to_zero_when_absent():
+    # an older/stub model that omits it -> 0, and the loop uses its fixed cadence.
+    p = percept_from('{"summary":"x","escalate":false}', 1.0)
+    assert p.next_glance_s == 0.0
+
+
 def test_percept_tolerates_prose_and_fences():
     raw = 'Sure!\n```json\n{"summary":"hi","escalate":false}\n```\n'
     p = percept_from(raw, 1.0)
