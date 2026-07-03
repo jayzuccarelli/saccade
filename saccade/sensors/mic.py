@@ -23,6 +23,43 @@ from saccade.schema import Frame
 SAMPLE_RATE = 16000  # 16kHz mono — plenty for speech, keeps the payload small
 
 
+def require_audio() -> None:
+    """Fail early with a clear message if the audio stack isn't installed —
+    beats a mid-loop crash. Shared by every sensor that records."""
+    try:
+        import sounddevice  # noqa: F401
+    except ImportError as e:
+        raise RuntimeError("microphone needs the audio extra: uv pip install -e '.[audio]'") from e
+    except OSError as e:
+        # sounddevice imports but PortAudio (the C lib) is missing — bundled in
+        # the Mac/Windows wheels, apt/brew territory on Linux.
+        raise RuntimeError(
+            "microphone needs PortAudio — `sudo apt install libportaudio2` (Linux)"
+        ) from e
+
+
+def record_pcm(seconds: float, sample_rate: int, device: int | None) -> bytes:
+    """Blocking capture of one mono clip — run off-thread. Returns raw int16 PCM."""
+    import sounddevice as sd  # lazy: pip install sounddevice
+
+    n = int(seconds * sample_rate)
+    audio = sd.rec(n, samplerate=sample_rate, channels=1, dtype="int16", device=device)
+    sd.wait()
+    return audio.tobytes()
+
+
+def wav_bytes(pcm: bytes, sample_rate: int) -> bytes:
+    """Wrap raw int16 mono PCM in a WAV container so the model gets a
+    self-describing clip. Reused by the mic and combined AV sensors."""
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)  # int16 = 2 bytes/sample
+        w.setframerate(sample_rate)
+        w.writeframes(pcm)
+    return buf.getvalue()
+
+
 class MicSensor:
     def __init__(self, index: int | None = None, fps: float = 1.0, sample_rate: int = SAMPLE_RATE):
         self.index = index  # None = system default input device
@@ -30,36 +67,13 @@ class MicSensor:
         self.sample_rate = sample_rate
 
     def _record(self) -> bytes:
-        """Blocking capture of one clip — run off-thread so the glance loop keeps
-        ticking. Returns raw int16 mono PCM."""
-        import sounddevice as sd  # lazy: pip install sounddevice
-
-        n = int(self.seconds * self.sample_rate)
-        audio = sd.rec(n, samplerate=self.sample_rate, channels=1, dtype="int16", device=self.index)
-        sd.wait()
-        return audio.tobytes()
+        return record_pcm(self.seconds, self.sample_rate, self.index)
 
     def _wav(self, pcm: bytes) -> bytes:
-        """Wrap raw PCM in a WAV container so the model gets a self-describing clip."""
-        buf = io.BytesIO()
-        with wave.open(buf, "wb") as w:
-            w.setnchannels(1)
-            w.setsampwidth(2)  # int16 = 2 bytes/sample
-            w.setframerate(self.sample_rate)
-            w.writeframes(pcm)
-        return buf.getvalue()
+        return wav_bytes(pcm, self.sample_rate)
 
     async def stream(self):
-        try:
-            import sounddevice  # noqa: F401  — surface a clear error, not a mid-loop crash
-        except ImportError as e:
-            raise RuntimeError("microphone needs the audio extra: uv pip install -e '.[audio]'") from e
-        except OSError as e:
-            # sounddevice imports but PortAudio (the C lib) is missing — bundled in
-            # the Mac/Windows wheels, apt/brew territory on Linux.
-            raise RuntimeError(
-                "microphone needs PortAudio — `sudo apt install libportaudio2` (Linux)"
-            ) from e
+        require_audio()
         while True:
             pcm = await asyncio.to_thread(self._record)
             yield Frame(ts=time.time(), audio=self._wav(pcm), audio_mime="audio/wav")

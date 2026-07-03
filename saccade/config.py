@@ -62,8 +62,8 @@ _autoload_dotenv()  # before the dataclass: its field defaults read os.environ
 
 @dataclass
 class Config:
-    # Sensor: "stub", "webcam" (local cam), "screen", "mic" (local mic), "reolink"
-    # (RTSP), or "replay" (folder)
+    # Sensor: "stub", "webcam" (local cam), "screen", "mic" (local mic), "av"
+    # (webcam + mic fused), "reolink" (RTSP), or "replay" (folder)
     sensor: str = os.environ.get("SACCADE_SENSOR", "stub")
     webcam_index: int = int(os.environ.get("SACCADE_WEBCAM_INDEX", "0"))
     # Mic input device; -1 = system default (see `saccade devices` for indices).

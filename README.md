@@ -184,6 +184,16 @@ Hearing needs an audio-capable backend — **gemini** today. Anthropic and Ollam
 PortAudio (`sudo apt install libportaudio2`); it's bundled in the Mac/Windows
 wheels.
 
+**See and hear at once** (webcam + mic fused). Each glance carries both a camera
+frame and an audio clip of the same instant, so the agent reasons over sight and
+sound together:
+
+```bash
+uv pip install -e '.[camera,audio]'
+SACCADE_SENSOR=av SACCADE_GLANCE_BACKEND=gemini SACCADE_FOCUS_BACKEND=gemini \
+  GEMINI_API_KEY=... python -m saccade
+```
+
 **Point it at an RTSP camera** (Reolink or anything that speaks RTSP). Give the
 parts and saccade assembles + URL-encodes the URL — a password with `@ : / #`
 won't break it:
@@ -205,7 +215,7 @@ and fill it in. saccade auto-loads it, so `python -m saccade` just works.
 | Path | What |
 |---|---|
 | `schema.py` | the contracts: Frame, Window, Percept, Decision |
-| `sensors/` | input streams — `stub`, `webcam`, `screen`, `mic`, `reolink`, `replay` (Protocol in `base.py`) |
+| `sensors/` | input streams — `stub`, `webcam`, `screen`, `mic`, `av` (webcam+mic), `reolink`, `replay` (Protocol in `base.py`) |
 | `devices.py` | `python -m saccade devices` — enumerate cameras/screens/mics/audio-outs |
 | `backends/` | swappable models — `stub`, `ollama` (local, stdlib), `gemini`, `openai`, `anthropic` (the only files that touch a model SDK) |
 | `speakers/` | swappable output — `print` (default), `gemini_tts` (synthesize to wav), `home_assistant` (example of a remote-output speaker) |
@@ -302,13 +312,11 @@ v0.1: end-to-end loop validated live. RTSP camera → cheap-tier judge (1Hz) →
 escalate → bigger model → audio out. Local + hosted backends, swappable sensors
 + speakers, structured output, episodic memory, evals, tests.
 
-v0.2: hearing (mic sensor), per-device speaker output, adaptive cadence (Glance
-paces its own attention), concurrent Focus (Glance keeps watching while the big
-model reasons).
+v0.2: hearing (mic sensor), sight+sound fused in one glance (`av` sensor),
+per-device speaker output, adaptive cadence (Glance paces its own attention),
+concurrent Focus (Glance keeps watching while the big model reasons).
 
 Next:
-- **Fuse mic + camera** into one frame, so a glance both sees and hears the same
-  instant instead of choosing one sensor.
 - **More audio backends.** Only Gemini hears today; add others as they ship
   native audio input.
 - **Full duplex / barge-in.** Interruptible speech — belongs with a realtime
