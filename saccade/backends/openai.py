@@ -10,17 +10,18 @@ from __future__ import annotations
 
 import base64
 import os
+from typing import Any
 
-from saccade.schema import Frame
+from saccade.schema import Frame, JsonSchema
 
 
 class OpenAIBackend:
     def __init__(self, model: str, api_key: str | None = None):
         self.model = model
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
-        self._client = None
+        self._client: Any = None
 
-    def _client_lazy(self):
+    def _client_lazy(self) -> Any:
         # Reuse one client — it owns a connection pool meant to live across calls.
         if self._client is None:
             from openai import AsyncOpenAI
@@ -28,16 +29,21 @@ class OpenAIBackend:
             self._client = AsyncOpenAI(api_key=self.api_key)
         return self._client
 
-    async def complete(self, prompt: str, frames: list[Frame], schema: dict | None = None) -> str:
+    async def complete(
+        self, prompt: str, frames: list[Frame], schema: JsonSchema | None = None
+    ) -> str:
         client = self._client_lazy()
-        content: list = [{"type": "text", "text": prompt}]
+        content: list[Any] = [{"type": "text", "text": prompt}]
         for f in frames:
             if f.image:
                 b64 = base64.b64encode(f.image).decode()
                 content.append(
                     {"type": "image_url", "image_url": {"url": f"data:{f.mime};base64,{b64}"}}
                 )
-        kwargs: dict = {"model": self.model, "messages": [{"role": "user", "content": content}]}
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": content}],
+        }
         if schema:
             kwargs["response_format"] = {
                 "type": "json_schema",

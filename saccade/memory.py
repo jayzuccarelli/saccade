@@ -16,6 +16,7 @@ import json
 import os
 import time
 from collections import deque
+from typing import Any
 
 from saccade.schema import Frame, Percept
 
@@ -54,15 +55,15 @@ class EpisodicMemory:
 
     def __init__(self, path: str = "episodic.jsonl", tail: int = 50):
         self.path = path
-        self.tail: deque[dict] = deque(maxlen=tail)
+        self.tail: deque[dict[str, Any]] = deque(maxlen=tail)
 
-    def record(self, kind: str, payload: dict) -> None:
+    def record(self, kind: str, payload: dict[str, Any]) -> None:
         entry = {"ts": time.time(), "kind": kind, **payload}
         self.tail.append(entry)
         with open(self.path, "a") as f:
             f.write(json.dumps(entry) + "\n")
 
-    def recent(self, n: int = 5, kind: str | None = None) -> list[dict]:
+    def recent(self, n: int = 5, kind: str | None = None) -> list[dict[str, Any]]:
         items = [e for e in self.tail if kind is None or e["kind"] == kind]
         return items[-n:]
 
