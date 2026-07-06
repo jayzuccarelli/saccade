@@ -13,6 +13,9 @@ utterances/
 # agent worktrees / local tooling state
 .claude/
 
+# personal project memory (Linear conventions etc.) — CLAUDE.md is the shipped one
+CLAUDE.local.md
+
 # eval fixtures: real camera frames (PII) + their generated manifest.
 # scenes.json (the text scenarios) IS tracked; the images are not.
 evals/frames/

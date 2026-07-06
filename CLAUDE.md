@@ -1,11 +1,51 @@
-# CLAUDE.md
+# CLAUDE.md — notes for contributors (human or agent)
 
-## Issue tracking (Linear)
+Orientation for working in this repo. User-facing setup lives in `README.md`.
 
-Work for this repo (the Periph / Saccade ambient agent) is tracked in Linear — team **JAY**, project **Periph**.
+## What it is
 
-- **Keep Linear tidy as you work, without being asked.** When Jay asks you to fix/build something, first check it has an issue in this project (`list_issues`, team JAY, project `Periph`) — if not, create one. When he says "remember to do X later," file it. Mark issues In Progress when you start; make sure they end up Done when finished.
-- Found a bug, TODO, or follow-up? File it as a Linear issue in this project instead of leaving a stray code comment or a separate list.
-- Linear generates a branch name per issue (`jayzuccarelli/jay-NN-...`); work on that branch.
-- Put `Fixes JAY-NN` in the PR description or a commit message — merging then auto-closes the issue.
-- Don't keep a parallel todo list; Linear is the source of truth.
+An ambient-agent harness with a two-tier attention loop:
+
+- **Sensor** streams `Frame`s (camera / screen / mic / RTSP / replay).
+- **Glance** — a cheap, fast model runs ~1 Hz over recent frames and decides
+  whether anything is worth a closer look (`escalate`, `salience`). Biased
+  toward *quiet*: precision over recall. It also emits `next_glance_s` so the
+  loop can slow down when nothing's happening (adaptive cadence).
+- **Focus** — an expensive model reasons only on escalation and decides whether
+  to actually speak. It runs concurrently, so Glance keeps observing while Focus
+  thinks.
+- **Speaker** emits the action (print / Gemini TTS / Home Assistant).
+
+Everything is swappable through `config.py` (env vars) and the factories in
+`__main__.py`. Models sit behind the `Backend` protocol (Gemini / OpenAI /
+Anthropic / Ollama / stub); sensors and speakers behind their own protocols.
+
+## The gate
+
+`make check` is the self-grading verify loop and must be green before anything
+ships:
+
+    make check      # ruff + mypy --strict + pytest
+
+CI runs the same thing across 3.10/3.12 on Linux and macOS. Keep it green.
+
+## Conventions
+
+- **uv** for everything — deps, lockfile, running (`uv run ...`). Commit
+  `uv.lock`. Lint + format with **ruff**.
+- **Typed strict.** `mypy --strict` is clean; keep it that way. Untyped
+  third-party libs are allowed via `ignore_missing_imports`.
+- **Optional deps go behind extras** (`camera`, `screen`, `audio`, `gemini`,
+  …) and are imported lazily inside the function that needs them, so the base
+  harness has no hard dependency on cv2 / PortAudio / a provider SDK.
+- **Evals measure the hard part.** `python -m saccade.evals` scores Glance's
+  salience judgment (precision/recall) against labeled scenes. Tune a prompt,
+  re-run, watch the numbers — don't tune by vibe.
+- **Keep Focus quiet.** Speaking on every low-stakes event is the failure mode.
+  When in doubt, don't speak.
+
+## Try it fast
+
+    python -m saccade                 # scripted stub — no key, no camera
+    python -m saccade devices         # list cameras / screens / mics / outputs
+    python -m saccade snapshot pic.jpg  # one frame through Glance (then Focus if salient)
