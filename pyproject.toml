@@ -20,18 +20,20 @@ classifiers = [
 ]
 dependencies = []  # core runs on the stdlib alone (Ollama backend included)
 
+# Lower bounds only — floors below current stable, so consumers get a working
+# API without us dictating their upper range. uv.lock pins dev, not consumers.
 [project.optional-dependencies]
-gemini = ["google-genai"]
-openai = ["openai"]
-anthropic = ["anthropic"]
-camera = ["opencv-python-headless", "pillow"]
-screen = ["mss", "pillow"]
-audio = ["sounddevice", "numpy"]  # numpy: sounddevice's rec()/play() arrays
+gemini = ["google-genai>=1.0.0"]
+openai = ["openai>=1.0.0"]
+anthropic = ["anthropic>=0.30.0"]
+camera = ["opencv-python-headless>=4.5.0", "pillow>=9.0.0"]
+screen = ["mss>=6.0.0", "pillow>=9.0.0"]
+audio = ["sounddevice>=0.4.5", "numpy>=1.21"]  # numpy: sounddevice's rec()/play() arrays
 
 [dependency-groups]
 # uv run includes this group by default, so `make check` works on a bare
 # machine (and in CI) without pillow's image tests silently skipping.
-dev = ["ruff", "pytest", "pillow"]
+dev = ["ruff", "pytest", "pillow", "mypy"]
 
 [project.urls]
 Homepage = "https://github.com/jayzuccarelli/saccade"
@@ -46,6 +48,13 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["saccade"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+# Optional backends/sensors import third-party libs with no type stubs
+# (cv2, sounddevice, google.genai, ...). Treat those as Any rather than vendor stubs.
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 100

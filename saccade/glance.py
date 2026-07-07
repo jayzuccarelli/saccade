@@ -12,7 +12,7 @@ from dataclasses import replace
 from saccade.backends.base import Backend
 from saccade.imageutil import downscale
 from saccade.memory import Memory
-from saccade.schema import PERCEPT_SCHEMA, Percept, Window, percept_from
+from saccade.schema import PERCEPT_SCHEMA, Frame, Percept, Window, percept_from
 
 PROMPT = """You are the peripheral awareness of an ambient assistant. You take a quick \
 glance about once a second and decide only whether something is worth a closer look.
@@ -57,10 +57,10 @@ class Glance:
             return "(nothing yet)"
         return " | ".join(f"[escalated] {p.summary}" if p.escalate else p.summary for p in percepts)
 
-    def _downscaled(self, window: Window) -> list:
+    def _downscaled(self, window: Window) -> list[Frame]:
         if not self.max_dim:
             return window.frames
-        out = []
+        out: list[Frame] = []
         for f in window.frames:
             shrunk = downscale(f.image, self.max_dim) if f.image else None
             out.append(replace(f, image=shrunk[0], mime=shrunk[1]) if shrunk else f)

@@ -20,6 +20,7 @@ import asyncio
 import time
 import wave
 from pathlib import Path
+from typing import Any
 
 # Gemini TTS returns 16-bit signed PCM, mono, 24 kHz (mime audio/L16;rate=24000).
 _RATE = 24000
@@ -44,9 +45,9 @@ class GeminiTTSSpeaker:
         self.play_cmd = play_cmd
         self.out_index = out_index  # -1 = OS default (via play_cmd); >=0 = that device
         self._api_key = api_key
-        self._client = None
+        self._client: Any = None
 
-    def _client_lazy(self):
+    def _client_lazy(self) -> Any:
         if self._client is None:
             from google import genai
 

@@ -17,14 +17,17 @@ import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from saccade.backends.base import Backend
     from saccade.config import Config
+    from saccade.sensors.base import Sensor
+    from saccade.speakers.base import Speaker
 
 # saccade imports live inside the functions below: importing config parses env
 # vars, so `saccade devices` must not trigger it — it's the tool you reach for
 # when your .env is broken.
 
 
-def make_sensor(c: Config):
+def make_sensor(c: Config) -> Sensor:
     if c.sensor == "webcam":
         from saccade.sensors.webcam import WebcamSensor
 
@@ -70,7 +73,7 @@ DEFAULT_MODELS = {
 }
 
 
-def make_backend(kind: str, role: str, c: Config):
+def make_backend(kind: str, role: str, c: Config) -> Backend:
     override = c.glance_model if role == "glance" else c.focus_model
     model = override or DEFAULT_MODELS.get((kind, role), "")
     if kind == "gemini":
@@ -94,7 +97,7 @@ def make_backend(kind: str, role: str, c: Config):
     return StubBackend(role=role)
 
 
-def make_speaker(c: Config):
+def make_speaker(c: Config) -> Speaker:
     if c.speaker == "gemini_tts":
         from saccade.speakers.gemini_tts import GeminiTTSSpeaker
 

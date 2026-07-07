@@ -11,6 +11,11 @@ import json
 import re
 import time
 from dataclasses import dataclass, field
+from typing import Any
+
+# A JSON Schema, as a plain dict. Roles (Glance/Focus) own these; each Backend
+# translates one into its provider's native structured-output mechanism.
+JsonSchema = dict[str, Any]
 
 
 @dataclass
@@ -23,7 +28,7 @@ class Frame:
     mime: str = "image/jpeg"
     audio: bytes | None = None  # WAV bytes for hearing; None for vision/text/stub
     audio_mime: str = "audio/wav"
-    meta: dict = field(default_factory=dict)
+    meta: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -63,15 +68,16 @@ class Decision:
     reasoning: str = ""
 
 
-def _loads_lenient(raw: str) -> dict:
+def _loads_lenient(raw: str) -> dict[str, Any]:
     """Pull the first {...} block out of a model response and parse it."""
     match = re.search(r"\{.*\}", raw, re.DOTALL)
     if not match:
         return {}
     try:
-        return json.loads(match.group(0))
+        parsed: dict[str, Any] = json.loads(match.group(0))
     except json.JSONDecodeError:
         return {}
+    return parsed
 
 
 # Neutral JSON Schemas — provider-agnostic. Each Backend translates these into

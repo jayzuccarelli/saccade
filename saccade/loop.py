@@ -19,11 +19,15 @@ import asyncio
 import contextlib
 import inspect
 from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 
 from saccade.focus import Focus
 from saccade.glance import Glance
 from saccade.memory import Memory
 from saccade.schema import Percept, Window
+
+if TYPE_CHECKING:
+    from saccade.sensors.base import Sensor
 
 # on_action may be sync (print) or async (a Speaker.say) — the loop handles both.
 Action = Callable[[str], None | Awaitable[None]]
@@ -103,7 +107,7 @@ async def _tick(
 
 
 async def run(
-    sensor,
+    sensor: Sensor,
     glance: Glance,
     focus: Focus,
     memory: Memory,
@@ -116,7 +120,7 @@ async def run(
 ) -> None:
     floor = 1.0 / glance_fps if glance_fps > 0 else 0.0
     stream_done = asyncio.Event()
-    focus_task: asyncio.Task | None = None  # single in-flight Focus (concurrent mode)
+    focus_task: asyncio.Task[None] | None = None  # single in-flight Focus (concurrent mode)
 
     async def capture() -> None:
         # Never pauses while the model thinks — keeps the buffer current.

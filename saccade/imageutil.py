@@ -30,7 +30,7 @@ def downscale(data: bytes, max_dim: int) -> tuple[bytes, str] | None:
     if max(w, h) <= max_dim:
         return None
     scale = max_dim / max(w, h)
-    img = img.convert("RGB").resize((max(1, int(w * scale)), max(1, int(h * scale))))
+    resized = img.convert("RGB").resize((max(1, int(w * scale)), max(1, int(h * scale))))
     out = io.BytesIO()
-    img.save(out, "JPEG", quality=85)
+    resized.save(out, "JPEG", quality=85)
     return out.getvalue(), "image/jpeg"

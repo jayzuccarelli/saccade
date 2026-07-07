@@ -12,6 +12,8 @@ import asyncio
 import re
 import threading
 import time
+from collections.abc import AsyncIterator
+from typing import Any
 
 from saccade.schema import Frame
 
@@ -21,7 +23,7 @@ class ReolinkSensor:
         self.rtsp_url = rtsp_url
         self.interval = 1.0 / fps
 
-    async def stream(self):
+    async def stream(self) -> AsyncIterator[Frame]:
         import cv2  # lazy: pip install opencv-python-headless
 
         cap = cv2.VideoCapture(self.rtsp_url)
@@ -35,7 +37,7 @@ class ReolinkSensor:
         # and keeps only the newest. Without it, reading one frame per `interval` from
         # an undrained buffer returns ever-older frames — the feed falls minutes behind
         # real-time, so the agent reacts to the past. Draining keeps us on the present.
-        latest: dict = {"frame": None}
+        latest: dict[str, Any] = {"frame": None}
         stop = threading.Event()
 
         def _reader() -> None:

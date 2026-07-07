@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import AsyncIterator
 
 from saccade.schema import Frame
 
@@ -23,7 +24,7 @@ class ScreenSensor:
         self.monitor = monitor
         self.interval = 1.0 / fps
 
-    async def stream(self):
+    async def stream(self) -> AsyncIterator[Frame]:
         import mss
         import mss.tools
 

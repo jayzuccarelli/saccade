@@ -9,3 +9,13 @@ utterances/
 
 # secrets + local config (copy .env.example)
 .env
+
+# agent worktrees / local tooling state
+.claude/
+
+CLAUDE.local.md
+
+# eval fixtures: real camera frames (PII) + their generated manifest.
+# scenes.json (the text scenarios) IS tracked; the images are not.
+evals/frames/
+evals/scenes_images.json
