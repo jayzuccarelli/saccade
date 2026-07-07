@@ -202,7 +202,7 @@ won't break it:
 uv pip install -e '.[camera]'
 SACCADE_SENSOR=reolink \
   SACCADE_RTSP_USER=admin SACCADE_RTSP_PASSWORD='your-pass' \
-  SACCADE_RTSP_HOST=192.0.2.217:554 SACCADE_RTSP_PATH=/h264Preview_01_sub \
+  SACCADE_RTSP_HOST=192.168.1.100:554 SACCADE_RTSP_PATH=/h264Preview_01_sub \
   python -m saccade
 # or pass a full SACCADE_RTSP_URL='rtsp://...' yourself
 ```

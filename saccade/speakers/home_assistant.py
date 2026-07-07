@@ -19,6 +19,7 @@ import urllib.request
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any
 
 
 class _QuietHandler(SimpleHTTPRequestHandler):
@@ -27,13 +28,13 @@ class _QuietHandler(SimpleHTTPRequestHandler):
     it (and the per-fetch access log) so a normal playback doesn't dump a traceback
     every time saccade speaks."""
 
-    def handle_one_request(self):
+    def handle_one_request(self) -> None:
         try:
             super().handle_one_request()
         except (BrokenPipeError, ConnectionResetError):
             self.close_connection = True
 
-    def log_message(self, *args) -> None:
+    def log_message(self, *args: Any) -> None:
         pass
 
 
@@ -46,7 +47,8 @@ def _lan_ip() -> str:
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         s.connect(("8.8.8.8", 80))  # no packets sent; just picks the egress iface
-        return s.getsockname()[0]
+        addr: str = s.getsockname()[0]
+        return addr
     except OSError:
         return "127.0.0.1"
     finally:
@@ -56,7 +58,7 @@ def _lan_ip() -> str:
 class HomeAssistantSpeaker:
     def __init__(
         self,
-        tts,
+        tts: Any,  # anything with `async synthesize(text) -> Path` (e.g. GeminiTTSSpeaker)
         ha_url: str,
         token: str,
         entity_id: str,
@@ -100,6 +102,7 @@ class HomeAssistantSpeaker:
     async def say(self, text: str) -> None:
         path = await self.tts.synthesize(text)
         self._ensure_server(path.parent)
+        assert self._server is not None  # _ensure_server just set it
         port = self._server.server_address[1]  # actual bound port (serve_port=0 → ephemeral)
         url = f"http://{self.serve_host}:{port}/{path.name}"
         await asyncio.to_thread(self._play_media, url)

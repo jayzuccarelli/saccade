@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import sys
 import time
+from collections.abc import AsyncIterator
 
 from saccade.schema import Frame
 
@@ -19,7 +20,7 @@ class WebcamSensor:
         self.index = index
         self.interval = 1.0 / fps
 
-    async def stream(self):
+    async def stream(self) -> AsyncIterator[Frame]:
         import cv2  # lazy: pip install opencv-python-headless
 
         cap = cv2.VideoCapture(self.index)

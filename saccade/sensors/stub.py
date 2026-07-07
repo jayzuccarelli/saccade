@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import itertools
 import time
+from collections.abc import AsyncIterator
 
 from saccade.schema import Frame
 
@@ -28,7 +29,7 @@ class StubSensor:
         self.interval = 1.0 / fps
         self.loop = loop
 
-    async def stream(self):
+    async def stream(self) -> AsyncIterator[Frame]:
         seq = itertools.cycle(SCRIPT) if self.loop else iter(SCRIPT)
         for scene in seq:
             yield Frame(ts=time.time(), image=None, meta={"scene": scene})

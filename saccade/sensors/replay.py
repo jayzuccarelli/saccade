@@ -12,6 +12,7 @@ import glob
 import itertools
 import os
 import time
+from collections.abc import AsyncIterator
 
 from saccade.schema import Frame
 
@@ -28,7 +29,7 @@ class ReplaySensor:
             paths += glob.glob(os.path.join(self.folder, ext))
         return sorted(paths)
 
-    async def stream(self):
+    async def stream(self) -> AsyncIterator[Frame]:
         paths = self._paths()
         if not paths:
             raise RuntimeError(f"no images (.jpg/.jpeg/.png) in {self.folder}")

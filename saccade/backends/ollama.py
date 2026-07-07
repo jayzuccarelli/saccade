@@ -19,9 +19,10 @@ import asyncio
 import base64
 import json
 import os
+from typing import Any
 from urllib import request
 
-from saccade.schema import Frame
+from saccade.schema import Frame, JsonSchema
 
 _DEFAULT_HOST = "http://localhost:11434"
 
@@ -37,19 +38,21 @@ class OllamaBackend:
         ).rstrip("/")
         self.timeout = timeout
 
-    async def complete(self, prompt: str, frames: list[Frame], schema: dict | None = None) -> str:
-        message: dict = {"role": "user", "content": prompt}
+    async def complete(
+        self, prompt: str, frames: list[Frame], schema: JsonSchema | None = None
+    ) -> str:
+        message: dict[str, Any] = {"role": "user", "content": prompt}
         images = [base64.b64encode(f.image).decode() for f in frames if f.image]
         if images:
             message["images"] = images
 
-        body: dict = {"model": self.model, "messages": [message], "stream": False}
+        body: dict[str, Any] = {"model": self.model, "messages": [message], "stream": False}
         if schema:
             body["format"] = schema
 
         return await asyncio.to_thread(self._post, body)
 
-    def _post(self, body: dict) -> str:
+    def _post(self, body: dict[str, Any]) -> str:
         req = request.Request(
             f"{self.host}/api/chat",
             data=json.dumps(body).encode(),
@@ -58,4 +61,5 @@ class OllamaBackend:
         )
         with request.urlopen(req, timeout=self.timeout) as resp:
             data = json.loads(resp.read())
-        return data.get("message", {}).get("content", "")
+        content: str = data.get("message", {}).get("content", "")
+        return content

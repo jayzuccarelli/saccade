@@ -1,5 +1,5 @@
-# Runs the same gate as local `make check` — ruff + full pytest, with pillow
-# installed so the image tests can't silently skip.
+# Runs the same gate as local `make check` — ruff + mypy --strict + full pytest,
+# with pillow installed so the image tests can't silently skip.
 name: check
 
 on:

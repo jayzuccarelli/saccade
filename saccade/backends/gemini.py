@@ -9,17 +9,18 @@ to end — RTSP camera → Glance @ 1Hz → Focus → TTS.
 from __future__ import annotations
 
 import os
+from typing import Any
 
-from saccade.schema import Frame
+from saccade.schema import Frame, JsonSchema
 
 
 class GeminiBackend:
     def __init__(self, model: str, api_key: str | None = None):
         self.model = model
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
-        self._client = None
+        self._client: Any = None
 
-    def _client_lazy(self):
+    def _client_lazy(self) -> Any:
         # Built once and reused — Glance calls this ~1/sec, and a fresh Client per
         # call rebuilds the connection pool every tick.
         if self._client is None:
@@ -28,11 +29,13 @@ class GeminiBackend:
             self._client = genai.Client(api_key=self.api_key)
         return self._client
 
-    async def complete(self, prompt: str, frames: list[Frame], schema: dict | None = None) -> str:
+    async def complete(
+        self, prompt: str, frames: list[Frame], schema: JsonSchema | None = None
+    ) -> str:
         from google.genai import types
 
         client = self._client_lazy()
-        contents: list = [prompt]
+        contents: list[Any] = [prompt]
         for f in frames:
             if f.image:
                 contents.append(types.Part.from_bytes(data=f.image, mime_type=f.mime))

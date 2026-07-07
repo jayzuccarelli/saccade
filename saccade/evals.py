@@ -17,11 +17,16 @@ import asyncio
 import json
 import sys
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from saccade.config import Config
 from saccade.memory import Memory
 from saccade.schema import Frame, Window
+
+if TYPE_CHECKING:
+    from saccade.glance import Glance
 
 
 @dataclass
@@ -41,7 +46,7 @@ def _frame(case: Case) -> Frame:
     return Frame(ts=0.0, meta={"scene": case.scene or ""})
 
 
-def score(results: list[tuple[bool, bool]]) -> dict:
+def score(results: list[tuple[bool, bool]]) -> dict[str, float]:
     """results: list of (expected, got) for the escalate decision."""
     tp = sum(1 for e, g in results if e and g)
     fp = sum(1 for e, g in results if not e and g)
@@ -60,10 +65,12 @@ def score(results: list[tuple[bool, bool]]) -> dict:
     }
 
 
-async def evaluate(cases: list[Case], glance, memory_factory):
+async def evaluate(
+    cases: list[Case], glance: Glance, memory_factory: Callable[[], Memory]
+) -> tuple[dict[str, float], list[tuple[str, bool, bool, float]]]:
     """Run Glance over every case (fresh memory each, so cases don't bleed).
     Returns (metrics, rows) where rows = [(name, expected, got, salience)]."""
-    rows = []
+    rows: list[tuple[str, bool, bool, float]] = []
     for c in cases:
         frame = _frame(c)
         memory = memory_factory()

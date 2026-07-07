@@ -8,11 +8,13 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from saccade.schema import Frame
+from saccade.schema import Frame, JsonSchema
 
 
 class Backend(Protocol):
-    async def complete(self, prompt: str, frames: list[Frame], schema: dict | None = None) -> str:
+    async def complete(
+        self, prompt: str, frames: list[Frame], schema: JsonSchema | None = None
+    ) -> str:
         """Run multimodal inference. Return the model's raw text.
 
         If `schema` (a JSON Schema dict) is given, the backend enforces structured

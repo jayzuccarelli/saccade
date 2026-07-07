@@ -16,6 +16,8 @@ from __future__ import annotations
 import asyncio
 import sys
 import time
+from collections.abc import AsyncIterator
+from typing import Any
 
 from saccade.schema import Frame
 from saccade.sensors.mic import SAMPLE_RATE, record_pcm, require_audio, wav_bytes
@@ -34,7 +36,7 @@ class AVSensor:
         self.seconds = 1.0 / fps  # audio clip length = one glance interval
         self.sample_rate = sample_rate
 
-    def _grab_jpeg(self, cap) -> bytes | None:
+    def _grab_jpeg(self, cap: Any) -> bytes | None:
         import cv2
 
         ok, frame = cap.read()
@@ -43,7 +45,7 @@ class AVSensor:
         ok2, buf = cv2.imencode(".jpg", frame)
         return buf.tobytes() if ok2 else None
 
-    async def stream(self):
+    async def stream(self) -> AsyncIterator[Frame]:
         import cv2  # lazy: pip install opencv-python-headless
 
         require_audio()  # fail early if the mic stack is missing
