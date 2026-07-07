@@ -12,10 +12,11 @@ from __future__ import annotations
 import contextlib
 import os
 import sys
+from collections.abc import Iterator
 
 
 @contextlib.contextmanager
-def _quiet_stderr():
+def _quiet_stderr() -> Iterator[None]:
     """OpenCV's C layer logs camera-probe noise straight to fd 2 — silence it
     around the probe so the device table stays readable."""
     fd = os.dup(2)
@@ -92,7 +93,9 @@ def _audio() -> tuple[list[tuple[int, str]], list[tuple[int, str]], str]:
     return mics, outs, ""
 
 
-def _print(title: str, items: list[tuple[int, str]], hint: str, env_lines: tuple = ()) -> None:
+def _print(
+    title: str, items: list[tuple[int, str]], hint: str, env_lines: tuple[str, ...] = ()
+) -> None:
     print(f"\n{title}")
     if hint:
         print(f"  (none — {hint})")

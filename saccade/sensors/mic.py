@@ -17,6 +17,7 @@ import asyncio
 import io
 import time
 import wave
+from collections.abc import AsyncIterator
 
 from saccade.schema import Frame
 
@@ -45,7 +46,8 @@ def record_pcm(seconds: float, sample_rate: int, device: int | None) -> bytes:
     n = int(seconds * sample_rate)
     audio = sd.rec(n, samplerate=sample_rate, channels=1, dtype="int16", device=device)
     sd.wait()
-    return audio.tobytes()
+    pcm: bytes = audio.tobytes()
+    return pcm
 
 
 def wav_bytes(pcm: bytes, sample_rate: int) -> bytes:
@@ -72,7 +74,7 @@ class MicSensor:
     def _wav(self, pcm: bytes) -> bytes:
         return wav_bytes(pcm, self.sample_rate)
 
-    async def stream(self):
+    async def stream(self) -> AsyncIterator[Frame]:
         require_audio()
         while True:
             pcm = await asyncio.to_thread(self._record)

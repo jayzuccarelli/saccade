@@ -15,8 +15,9 @@ from __future__ import annotations
 import base64
 import json
 import os
+from typing import Any
 
-from saccade.schema import Frame
+from saccade.schema import Frame, JsonSchema
 
 
 class AnthropicBackend:
@@ -24,9 +25,9 @@ class AnthropicBackend:
         self.model = model
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         self.max_tokens = max_tokens
-        self._client = None
+        self._client: Any = None
 
-    def _client_lazy(self):
+    def _client_lazy(self) -> Any:
         # Reuse one client — it owns a connection pool meant to live across calls.
         if self._client is None:
             from anthropic import AsyncAnthropic
@@ -34,9 +35,11 @@ class AnthropicBackend:
             self._client = AsyncAnthropic(api_key=self.api_key)
         return self._client
 
-    async def complete(self, prompt: str, frames: list[Frame], schema: dict | None = None) -> str:
+    async def complete(
+        self, prompt: str, frames: list[Frame], schema: JsonSchema | None = None
+    ) -> str:
         client = self._client_lazy()
-        blocks: list = [{"type": "text", "text": prompt}]
+        blocks: list[Any] = [{"type": "text", "text": prompt}]
         for f in frames:
             if f.image:
                 b64 = base64.b64encode(f.image).decode()
