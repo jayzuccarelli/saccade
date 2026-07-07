@@ -16,65 +16,22 @@ Sensors ──▶ Glance ──▶ Percept ──▶ salient? ──▶ Focus �
                         working / episodic / semantic
 ```
 
-## Design rules (non-negotiable)
+## How it works
 
-- **No hand-coded decision rules.** Exactly two model judgments: Glance decides
-  *"worth a closer look?"*, Focus decides *"speak, and what?"*. Recency and
-  preferences are **context** fed to the model, never `if` branches.
-- **Models are swappable, and the cheap tier should be local.** Vendor SDKs
-  live only in `backends/`. Swap a model = swap a Backend. The two tiers are
-  independent — the design intent is cheap-local for the always-on judge
-  (private, free, no rate limits) and a bigger API model when something
-  escalates. Run any combo while you build toward that.
-- **Inputs and outputs are swappable.** Any `Sensor` (camera, mic, screen,
-  sensor reading) and any `Speaker` (print, audio, webhook, hardware) is a
-  drop-in. One file each, no harness change.
-- **Cost is managed by architecture, not hacks** — the cheap-gates-expensive
-  cascade, image size, and cadence. No heuristic pre-filters.
-- **The brain parallel guides design, it isn't dogma.** Use it where it makes
-  things clearer; drop it the moment it's just decoration.
+Two model judgments, no rule engine: **Glance** decides *worth a closer look?*,
+**Focus** decides *speak, and what?*. Preferences and recent history are context
+fed to the model, not `if` branches. Everything else swaps behind a Protocol:
 
-## Quickstart — for agents
+- **Models** live only in `backends/` (Gemini, OpenAI, Anthropic, Ollama, stub).
+  The intended setup is a cheap *local* model for the always-on Glance tier —
+  private, free, no rate limits — and a bigger API model when something
+  escalates. Run any mix while you build toward that.
+- **Inputs** are `Sensor`s (camera, screen, mic, RTSP, replay); **outputs** are
+  `Speaker`s (print, TTS, webhook, hardware). One file each, drop-in.
+- **Cost is the cascade, not tricks** — the cheap tier gates the expensive one,
+  Glance downscales its input, and cadence adapts. No heuristic pre-filters.
 
-If you're an AI coding agent extending this repo, read this first.
-
-**Hard rules.** Breaking these breaks the design.
-- **No hand-coded decision rules.** The only judgments are the two model calls
-  (`glance.py`, `focus.py`). Salience, urgency, tone — context fed to the model,
-  never `if x and y: speak`.
-- **Vendor SDKs only in `backends/`** and `speakers/gemini_tts.py`. If you find
-  yourself importing `google.genai` or `openai` anywhere else, you're wrong.
-- **Don't break the Protocols** in `sensors/base.py`, `backends/base.py`,
-  `speakers/base.py`. Every concrete class is interchangeable; that's the point.
-- **Structured output goes through the schemas** in `schema.py`
-  (`PERCEPT_SCHEMA`, `DECISION_SCHEMA`). Don't parse free text and don't add a
-  fourth schema unless you're adding a fourth role.
-
-**Where to add things.** One file each — nothing else changes.
-- New camera/mic/screen → `sensors/yours.py` implementing `Sensor.stream()`.
-- New model provider → `backends/yours.py` implementing `Backend.complete()`.
-  Translate `schema` to the provider's native structured-output mechanism.
-- New voice output (a speaker, a TV, a phone) → `speakers/yours.py` implementing
-  `Speaker.say()`.
-- Register the new class in `__main__.py`'s small dispatch.
-
-**Before claiming done.**
-1. `python -m pytest -q` — all green.
-2. `python -m saccade` with no env — the scripted stub run still works end-to-end.
-3. If you touched a real path (camera, model, speaker), actually run it. Tests
-   verify code; running verifies the feature.
-
-**Config + secrets.** `saccade/config.py` auto-loads `.env` at import time
-(stdlib only, no `python-dotenv`). Real env wins over `.env`. Add new vars as
-dataclass fields with `os.environ.get(...)` defaults; don't read env scattered
-across modules.
-
-**Don't.** Add a fallback that "tries the next backend on error" (silent
-provider switch — debug nightmare). Add a "smart" cache that compares frames
-(image diff = hand-coded salience, see hard rule #1). Refactor what wasn't
-asked. Write docstring blocks; one short line max.
-
-## Quickstart — for humans
+## Quickstart
 
 **Install.**
 
@@ -270,12 +227,12 @@ Glance runs constantly, so cost = cadence × price. Reality check:
   resolution to spot that *something* changed. Focus always gets the full-res
   frame, since it reasons carefully and runs rarely. Fewer tokens where it's
   frequent, full detail where it matters.
-
-**Proposed next step (not yet built): adaptive cadence.** Instead of a fixed
-rate, let Glance emit how soon it should look again — quiet scene → check back in
-seconds; something happening → check every tick. This cuts total calls (and cost)
-without any hand-coded rules, since the *model* decides the interval. Lands well
-once we're past the free tier. See `loop.py`.
+- **Adaptive cadence** (`SACCADE_ADAPTIVE_CADENCE`, on by default). Instead of a
+  fixed rate, Glance emits how soon it should look again — quiet scene → check
+  back in seconds; something happening → every tick. The *model* sets the
+  interval, so total calls (and cost) fall with no hand-coded rules. It only ever
+  *slows* (never faster than `SACCADE_GLANCE_FPS`) and clamps to
+  `SACCADE_GLANCE_MAX_INTERVAL` (default 15s). See `loop.py`.
 
 ## Develop without a camera or API
 
@@ -305,6 +262,48 @@ score a real model the same way.
 ```bash
 uv pip install pytest && python -m pytest -q
 ```
+
+## Extending it (for coding agents)
+
+Extending this repo — as a human or an AI coding agent — comes down to one file
+per new piece. The rules below keep the design intact.
+
+**Hard rules.** Breaking these breaks the design.
+- **No hand-coded decision rules.** The only judgments are the two model calls
+  (`glance.py`, `focus.py`). Salience, urgency, tone — context fed to the model,
+  never `if x and y: speak`.
+- **Vendor SDKs only in `backends/`** and `speakers/gemini_tts.py`. If you find
+  yourself importing `google.genai` or `openai` anywhere else, that's the wrong
+  layer.
+- **Don't break the Protocols** in `sensors/base.py`, `backends/base.py`,
+  `speakers/base.py`. Every concrete class is interchangeable; that's the point.
+- **Structured output goes through the schemas** in `schema.py`
+  (`PERCEPT_SCHEMA`, `DECISION_SCHEMA`). Don't parse free text and don't add a
+  fourth schema unless you're adding a fourth role.
+
+**Where to add things.** One file each — nothing else changes.
+- New camera/mic/screen → `sensors/yours.py` implementing `Sensor.stream()`.
+- New model provider → `backends/yours.py` implementing `Backend.complete()`.
+  Translate `schema` to the provider's native structured-output mechanism.
+- New voice output (a speaker, a TV, a phone) → `speakers/yours.py` implementing
+  `Speaker.say()`.
+- Register the new class in `__main__.py`'s small dispatch.
+
+**Before claiming done.**
+1. `python -m pytest -q` — all green.
+2. `python -m saccade` with no env — the scripted stub run still works end-to-end.
+3. If you touched a real path (camera, model, speaker), actually run it. Tests
+   verify code; running verifies the feature.
+
+**Config + secrets.** `saccade/config.py` auto-loads `.env` at import time
+(stdlib only, no `python-dotenv`). Real env wins over `.env`. Add new vars as
+dataclass fields with `os.environ.get(...)` defaults; don't read env scattered
+across modules.
+
+**Avoid.** A fallback that "tries the next backend on error" (a silent provider
+switch is a debugging trap). A "smart" cache that compares frames (image diff =
+hand-coded salience, see hard rule #1). Refactoring what wasn't asked. Docstring
+blocks — one short line max.
 
 ## Status
 
