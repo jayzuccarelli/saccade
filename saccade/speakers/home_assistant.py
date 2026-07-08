@@ -3,7 +3,7 @@ and tell a media_player to play it.
 
 Decoupled from HA's filesystem — saccade serves its own audio over a small HTTP
 server and HA just fetches the URL, so there's no dependency on HA's `www` dir or
-host. Built and tested against a Sonos ("Den"). Any `media_player` works.
+host. Built and tested against a Sonos speaker. Any `media_player` works.
 
 `tts` is anything with `async synthesize(text) -> Path` (e.g. GeminiTTSSpeaker).
 The HTTP server starts lazily on the first utterance and serves the clip dir.

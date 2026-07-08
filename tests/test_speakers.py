@@ -109,7 +109,7 @@ def test_ha_speaker_serves_clip_and_posts_play_media(tmp_path):
         tts,
         "http://ha.local:8123",
         "tok",
-        "media_player.den",
+        "media_player.living_room",
         serve_host="127.0.0.1",
         serve_port=0,  # ephemeral — no port collision
     )
