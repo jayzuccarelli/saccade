@@ -37,7 +37,8 @@ fed to the model, not `if` branches. Everything else swaps behind a Protocol:
 
 ```bash
 git clone https://github.com/jayzuccarelli/saccade && cd saccade
-uv pip install -e .   # or `pip install -e .` if you don't have uv
+uv venv && source .venv/bin/activate   # create + activate a virtualenv
+uv pip install -e .                     # or just `pip install -e .`
 ```
 
 **Try it with nothing else.** No key, no camera — runs a scripted scene on the
