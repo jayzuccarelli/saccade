@@ -31,7 +31,49 @@ fed to the model, not `if` branches. Everything else swaps behind a Protocol:
 - **Cost is the cascade, not tricks** — the cheap tier gates the expensive one,
   Glance downscales its input, and cadence adapts. No heuristic pre-filters.
 
-## Quickstart
+## Quickstart — for agents
+
+Extending this repo — as a human or an AI coding agent — comes down to one file
+per new piece. The rules below keep the design intact.
+
+**Hard rules.** Breaking these breaks the design.
+- **No hand-coded decision rules.** The only judgments are the two model calls
+  (`glance.py`, `focus.py`). Salience, urgency, tone — context fed to the model,
+  never `if x and y: speak`.
+- **Vendor SDKs only in `backends/`** and `speakers/gemini_tts.py`. If you find
+  yourself importing `google.genai` or `openai` anywhere else, that's the wrong
+  layer.
+- **Don't break the Protocols** in `sensors/base.py`, `backends/base.py`,
+  `speakers/base.py`. Every concrete class is interchangeable; that's the point.
+- **Structured output goes through the schemas** in `schema.py`
+  (`PERCEPT_SCHEMA`, `DECISION_SCHEMA`). Don't parse free text and don't add a
+  fourth schema unless you're adding a fourth role.
+
+**Where to add things.** One file each — nothing else changes.
+- New camera/mic/screen → `sensors/yours.py` implementing `Sensor.stream()`.
+- New model provider → `backends/yours.py` implementing `Backend.complete()`.
+  Translate `schema` to the provider's native structured-output mechanism.
+- New voice output (a speaker, a TV, a phone) → `speakers/yours.py` implementing
+  `Speaker.say()`.
+- Register the new class in `__main__.py`'s small dispatch.
+
+**Before claiming done.**
+1. `python -m pytest -q` — all green.
+2. `python -m saccade` with no env — the scripted stub run still works end-to-end.
+3. If you touched a real path (camera, model, speaker), actually run it. Tests
+   verify code; running verifies the feature.
+
+**Config + secrets.** `saccade/config.py` auto-loads `.env` at import time
+(stdlib only, no `python-dotenv`). Real env wins over `.env`. Add new vars as
+dataclass fields with `os.environ.get(...)` defaults; don't read env scattered
+across modules.
+
+**Avoid.** A fallback that "tries the next backend on error" (a silent provider
+switch is a debugging trap). A "smart" cache that compares frames (image diff =
+hand-coded salience, see hard rule #1). Refactoring what wasn't asked. Docstring
+blocks — one short line max.
+
+## Quickstart — for humans
 
 **Install.**
 
@@ -263,48 +305,6 @@ score a real model the same way.
 ```bash
 uv pip install pytest && python -m pytest -q
 ```
-
-## Extending it (for coding agents)
-
-Extending this repo — as a human or an AI coding agent — comes down to one file
-per new piece. The rules below keep the design intact.
-
-**Hard rules.** Breaking these breaks the design.
-- **No hand-coded decision rules.** The only judgments are the two model calls
-  (`glance.py`, `focus.py`). Salience, urgency, tone — context fed to the model,
-  never `if x and y: speak`.
-- **Vendor SDKs only in `backends/`** and `speakers/gemini_tts.py`. If you find
-  yourself importing `google.genai` or `openai` anywhere else, that's the wrong
-  layer.
-- **Don't break the Protocols** in `sensors/base.py`, `backends/base.py`,
-  `speakers/base.py`. Every concrete class is interchangeable; that's the point.
-- **Structured output goes through the schemas** in `schema.py`
-  (`PERCEPT_SCHEMA`, `DECISION_SCHEMA`). Don't parse free text and don't add a
-  fourth schema unless you're adding a fourth role.
-
-**Where to add things.** One file each — nothing else changes.
-- New camera/mic/screen → `sensors/yours.py` implementing `Sensor.stream()`.
-- New model provider → `backends/yours.py` implementing `Backend.complete()`.
-  Translate `schema` to the provider's native structured-output mechanism.
-- New voice output (a speaker, a TV, a phone) → `speakers/yours.py` implementing
-  `Speaker.say()`.
-- Register the new class in `__main__.py`'s small dispatch.
-
-**Before claiming done.**
-1. `python -m pytest -q` — all green.
-2. `python -m saccade` with no env — the scripted stub run still works end-to-end.
-3. If you touched a real path (camera, model, speaker), actually run it. Tests
-   verify code; running verifies the feature.
-
-**Config + secrets.** `saccade/config.py` auto-loads `.env` at import time
-(stdlib only, no `python-dotenv`). Real env wins over `.env`. Add new vars as
-dataclass fields with `os.environ.get(...)` defaults; don't read env scattered
-across modules.
-
-**Avoid.** A fallback that "tries the next backend on error" (a silent provider
-switch is a debugging trap). A "smart" cache that compares frames (image diff =
-hand-coded salience, see hard rule #1). Refactoring what wasn't asked. Docstring
-blocks — one short line max.
 
 ## Status
 
