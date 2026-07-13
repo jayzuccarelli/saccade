@@ -23,7 +23,7 @@ dependencies = []  # core runs on the stdlib alone (Ollama backend included)
 # Lower bounds only — floors below current stable, so consumers get a working
 # API without us dictating their upper range. uv.lock pins dev, not consumers.
 [project.optional-dependencies]
-gemini = ["google-genai>=1.0.0"]
+gemini = ["google-genai>=1.21.0"]  # response_json_schema landed in 1.21.0; earlier SDKs reject it
 openai = ["openai>=1.0.0"]
 anthropic = ["anthropic>=0.30.0"]
 camera = ["opencv-python-headless>=4.5.0", "pillow>=9.0.0"]
