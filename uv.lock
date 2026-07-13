@@ -1375,7 +1375,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.30.0" },
-    { name = "google-genai", marker = "extra == 'gemini'", specifier = ">=1.0.0" },
+    { name = "google-genai", marker = "extra == 'gemini'", specifier = ">=1.21.0" },
     { name = "mss", marker = "extra == 'screen'", specifier = ">=6.0.0" },
     { name = "numpy", marker = "extra == 'audio'", specifier = ">=1.21" },
     { name = "openai", marker = "extra == 'openai'", specifier = ">=1.0.0" },
