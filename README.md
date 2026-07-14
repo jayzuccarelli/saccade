@@ -79,12 +79,32 @@ blocks — one short line max.
 
 ```bash
 git clone https://github.com/jayzuccarelli/saccade && cd saccade
-uv venv && source .venv/bin/activate   # create + activate a virtualenv
-uv pip install -e .                     # or just `pip install -e .`
+uv venv
+source .venv/bin/activate
+uv pip install -e '.[camera,screen,audio]'
 ```
 
-**Try it with nothing else.** No key, no camera — runs a scripted scene on the
-stdlib alone:
+The extras are what let saccade see and hear — `uv pip install -e .` on its own
+installs no camera, screen, or mic support. No uv? `python3 -m venv .venv &&
+source .venv/bin/activate && pip install -e '.[camera,screen,audio]'` does the same.
+
+**Pick your devices.**
+
+```bash
+python -m saccade setup
+```
+
+Probes this machine and asks three questions: what to watch or hear (your
+built-in camera, an external one, a screen, a mic, or camera + mic together),
+which model thinks, and whether it answers as text or out loud. Writes a `.env`
+you can edit by hand afterwards. Then start it:
+
+```bash
+python -m saccade
+```
+
+**Or skip setup entirely.** No key, no camera — runs a scripted scene on the
+stdlib alone, so you can see the loop before wiring anything up:
 
 ```bash
 python -m saccade
@@ -103,11 +123,14 @@ tier — no API bill, no rate limits, frames never leave your machine):
 
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
-ollama pull gemma3:4b           # ~3GB, multimodal, Glance default
-ollama pull gemma3:12b          # smarter, Focus default
+ollama pull gemma3:4b
+ollama pull gemma3:12b
 
 SACCADE_GLANCE_BACKEND=ollama SACCADE_FOCUS_BACKEND=ollama python -m saccade
 ```
+
+`gemma3:4b` (~3GB, multimodal) is the Glance default; `gemma3:12b` is smarter and
+the Focus default.
 
 Any Ollama vision model works — swap with `SACCADE_GLANCE_MODEL=qwen2.5vl:7b` etc.
 
@@ -149,8 +172,9 @@ python -m saccade devices
 ```bash
 uv pip install -e '.[camera]'
 SACCADE_SENSOR=webcam python -m saccade
-# SACCADE_WEBCAM_INDEX=1 if you have more than one cam
 ```
+
+Set `SACCADE_WEBCAM_INDEX=1` if you have more than one cam.
 
 macOS: grant Camera access to your terminal app (System Settings > Privacy &
 Security > Camera) — approve the prompt on first run, then rerun.
@@ -161,8 +185,9 @@ side-cars, meeting notes, "did I actually close that tab"):
 ```bash
 uv pip install -e '.[screen]'
 SACCADE_SENSOR=screen SACCADE_SCREEN_INDEX=1 python -m saccade
-# index 1 = primary monitor; `saccade devices` lists them all
 ```
+
+Index 1 is the primary monitor; `python -m saccade devices` lists them all.
 
 macOS: grant Screen Recording to your terminal app (System Settings > Privacy &
 Security > Screen Recording) and restart the terminal — without it, mss silently
@@ -175,9 +200,10 @@ to the model, so the agent reacts to sound, not just sight:
 uv pip install -e '.[audio]'
 SACCADE_SENSOR=mic SACCADE_GLANCE_BACKEND=gemini SACCADE_FOCUS_BACKEND=gemini \
   GEMINI_API_KEY=... python -m saccade
-# SACCADE_MIC_INDEX=1 to pick a device; -1 (default) uses the system mic
-# no hardware? test hearing on a file: python -m saccade snapshot clip.wav
 ```
+
+`SACCADE_MIC_INDEX=1` picks a device; `-1` (default) uses the system mic. No
+hardware? Test hearing on a file: `python -m saccade snapshot clip.wav`.
 
 Hearing needs an audio-capable backend — **gemini** today. Anthropic and Ollama
 (gemma) are vision-only; OpenAI needs a dedicated audio model. Linux also needs
@@ -204,8 +230,9 @@ SACCADE_SENSOR=reolink \
   SACCADE_RTSP_USER=admin SACCADE_RTSP_PASSWORD='your-pass' \
   SACCADE_RTSP_HOST=192.168.1.100:554 SACCADE_RTSP_PATH=/h264Preview_01_sub \
   python -m saccade
-# or pass a full SACCADE_RTSP_URL='rtsp://...' yourself
 ```
+
+Or pass a full `SACCADE_RTSP_URL='rtsp://...'` yourself.
 
 **Stop typing env vars every run.** Copy `.env.example` → `.env` (gitignored)
 and fill it in. saccade auto-loads it, so `python -m saccade` just works.

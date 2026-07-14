@@ -171,11 +171,19 @@ async def main() -> None:
     from saccade.memory import Memory
 
     c = Config()
-    if c.sensor == "stub" and (c.glance_backend != "stub" or c.focus_backend != "stub"):
+    if c.sensor == "stub" and c.glance_backend == "stub" and c.focus_backend == "stub":
+        # Nothing is configured at all — the first thing a fresh clone hits.
+        # Don't leave them watching a canned scene with no way forward.
+        print(
+            "Nothing configured yet — this is a scripted demo with a stub model,\n"
+            "not your camera. To point saccade at real hardware and a real model:\n\n"
+            "    python -m saccade setup\n"
+        )
+    elif c.sensor == "stub":
         print(
             "note: SACCADE_SENSOR is unset, so the stub sensor is feeding the real "
-            "model no images.\nPoint it at something: SACCADE_SENSOR=webcam / screen / "
-            "reolink, or try `python -m saccade snapshot pic.jpg`.\n"
+            "model no images.\nPoint it at something: `python -m saccade setup`, or set "
+            "SACCADE_SENSOR=webcam / screen / reolink.\n"
         )
     sensor = make_sensor(c)
     glance = Glance(make_backend(c.glance_backend, "glance", c), max_dim=c.glance_max_dim)
@@ -207,6 +215,7 @@ async def main() -> None:
 USAGE = """usage: saccade [command]
 
   (no command)      run the ambient loop (sensor/models/speaker from env or .env)
+  setup             pick your camera/mic/screen and model, write .env
   devices           list cameras, screens, mics, and audio outputs
   snapshot <file>   run one image or audio clip through Glance (then Focus if salient)"""
 
@@ -219,6 +228,10 @@ def cli() -> None:
         asyncio.run(main())
     elif argv[0] in ("-h", "--help"):
         print(USAGE)
+    elif argv[0] == "setup":
+        from saccade.setup import main as setup_main
+
+        setup_main()
     elif argv[0] == "devices":
         from saccade.devices import main as devices_main
 
