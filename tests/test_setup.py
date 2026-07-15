@@ -83,8 +83,34 @@ def test_speaker_is_text_only_with_no_outputs():
 
 
 def test_every_backend_choice_sets_both_tiers():
-    for env in _envs(_backend_choices()):
+    for env in _envs(_backend_choices((True, "ready"))):
         assert env["SACCADE_GLANCE_BACKEND"] == env["SACCADE_FOCUS_BACKEND"]
+
+
+def test_ollama_leads_only_when_it_can_answer():
+    """A reachable daemon earns the default slot; an installed-but-dead one
+    doesn't — picking it is connection-refused on every tick forever."""
+    ready = _backend_choices((True, "ready"))
+    assert ready[0][1]["SACCADE_GLANCE_BACKEND"] == "ollama"
+    dead = _backend_choices((False, "not running — start it: ollama serve"))
+    assert dead[0][1]["SACCADE_GLANCE_BACKEND"] != "ollama"
+    assert any(e["SACCADE_GLANCE_BACKEND"] == "ollama" for e in _envs(dead))
+
+
+def test_backend_tag_is_shown_in_the_label():
+    label = _backend_choices((False, "not running — start it: ollama serve"))[-1][0]
+    assert "ollama serve" in label
+
+
+def test_backup_is_env_bak_not_env_env_bak(tmp_path: Path, monkeypatch):
+    """Regression: Path('.env').with_suffix('.env.bak') gives '.env.env.bak' —
+    a dotfile is all stem, so there's no suffix to replace."""
+    path = tmp_path / ".env"
+    path.write_text("SACCADE_SENSOR=stub\n")
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+    assert _write_env(path, {"SACCADE_SENSOR": "webcam"})
+    assert (tmp_path / ".env.bak").read_text() == "SACCADE_SENSOR=stub\n"
+    assert not (tmp_path / ".env.env.bak").exists()
 
 
 def test_write_env_emits_loadable_lines(tmp_path: Path):

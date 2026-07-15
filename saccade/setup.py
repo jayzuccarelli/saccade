@@ -11,11 +11,15 @@ system.
 
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 from pathlib import Path
+from urllib import request
 
 from saccade.devices import _audio, _cameras, _screens
+
+_OLLAMA_HOST = "http://localhost:11434"
 
 # A menu entry: what the user sees, and the env vars picking it writes.
 Choice = tuple[str, dict[str, str]]
@@ -67,11 +71,27 @@ def _sensor_choices(devs: Devices) -> list[Choice]:
     return out
 
 
-def _backend_choices() -> list[Choice]:
-    """Local-first: Ollama leads when it's installed, since it's free and the
-    frames never leave the machine."""
-    ollama = shutil.which("ollama") is not None
-    tag = "installed" if ollama else "not installed — see https://ollama.com"
+def _ollama_state() -> tuple[bool, str]:
+    """Whether Ollama can actually answer, and what to say about it. Ask the
+    daemon, don't ask `which ollama` — a Mac with the binary installed and the
+    server down is the common case, and it fails as connection-refused on every
+    tick rather than at setup time, which is where you'd want to hear it."""
+    try:
+        with request.urlopen(f"{_OLLAMA_HOST}/api/tags", timeout=0.5) as resp:
+            models = json.loads(resp.read()).get("models", [])
+    except (OSError, ValueError):  # URLError subclasses OSError
+        if shutil.which("ollama"):
+            return False, "not running — start it: ollama serve"
+        return False, "not installed — see https://ollama.com"
+    if not models:
+        return False, "running, but no models pulled — ollama pull gemma3:4b"
+    return True, f"ready, {len(models)} model(s) pulled"
+
+
+def _backend_choices(ollama: tuple[bool, str]) -> list[Choice]:
+    """Local-first: Ollama leads when it can actually answer, since it's free and
+    the frames never leave the machine."""
+    usable, tag = ollama
     out: list[Choice] = [
         (
             f"Ollama — local, free, private ({tag})",
@@ -94,7 +114,7 @@ def _backend_choices() -> list[Choice]:
             {"SACCADE_GLANCE_BACKEND": "stub", "SACCADE_FOCUS_BACKEND": "stub"},
         ),
     ]
-    if not ollama:
+    if not usable:
         out.append(out.pop(0))  # don't lead with something they can't run
     return out
 
@@ -143,7 +163,9 @@ def _write_env(path: Path, env: dict[str, str]) -> bool:
             for k, v in env.items():
                 print(f"  {k}={v}")
             return False
-        backup = path.with_suffix(".env.bak")
+        # .env has no suffix to replace (it's all stem), so with_suffix would
+        # make ".env.env.bak" — append instead.
+        backup = path.with_name(path.name + ".bak")
         shutil.copyfile(path, backup)
         print(f"  (backed up to {backup})")
     body = "\n".join(f"{k}={v}" for k, v in env.items())
@@ -178,10 +200,14 @@ def main() -> None:
         if hint and "install" not in hint:
             print(f"  note: {hint}")
 
+    ollama = _ollama_state()
     env: dict[str, str] = {}
     env.update(_ask("What should saccade watch or hear?", _sensor_choices(devs)))
-    env.update(_ask("Which model should think?", _backend_choices()))
+    env.update(_ask("Which model should think?", _backend_choices(ollama)))
     env.update(_ask("How should saccade answer?", _speaker_choices(outs)))
+
+    if env.get("SACCADE_GLANCE_BACKEND") == "ollama" and not ollama[0]:
+        print(f"\n  Heads up: Ollama is {ollama[1]}\n  saccade will keep retrying until it's up.")
 
     backend = env.get("SACCADE_GLANCE_BACKEND", "stub")
     needs_key = KEY_VARS.get(backend) or (
