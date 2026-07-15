@@ -56,19 +56,17 @@ def _sensor_choices(devs: Devices) -> list[Choice]:
     for i, name in mics:
         out.append((f"Mic {i} — {name}", {"SACCADE_SENSOR": "mic", "SACCADE_MIC_INDEX": str(i)}))
     if cams and mics:
-        cam, mic = cams[0][0], mics[0][0]
-        out.append(
-            (
-                f"Camera {cam} + Mic {mic} — see and hear at once",
-                {
-                    "SACCADE_SENSOR": "av",
-                    "SACCADE_WEBCAM_INDEX": str(cam),
-                    "SACCADE_MIC_INDEX": str(mic),
-                },
-            )
-        )
+        # Which camera and which mic is a follow-up question — pairing the first
+        # of each looks reasonable until you meet a Mac whose first mic is the
+        # user's iPhone and whose first camera is the built-in webcam.
+        out.append(("A camera and a mic together — see and hear at once", {"SACCADE_SENSOR": "av"}))
     out.append(("Nothing — scripted demo, no hardware", {"SACCADE_SENSOR": "stub"}))
     return out
+
+
+def _device_choices(kind: str, var: str, items: list[tuple[int, str]]) -> list[Choice]:
+    """Menu over one device family, setting just that family's index var."""
+    return [(f"{kind} {i} — {desc}", {var: str(i)}) for i, desc in items]
 
 
 def _ollama_state() -> tuple[bool, str]:
@@ -203,6 +201,9 @@ def main() -> None:
     ollama = _ollama_state()
     env: dict[str, str] = {}
     env.update(_ask("What should saccade watch or hear?", _sensor_choices(devs)))
+    if env.get("SACCADE_SENSOR") == "av":
+        env.update(_ask("Which camera?", _device_choices("Camera", "SACCADE_WEBCAM_INDEX", cams)))
+        env.update(_ask("Which mic?", _device_choices("Mic", "SACCADE_MIC_INDEX", mics)))
     env.update(_ask("Which model should think?", _backend_choices(ollama)))
     env.update(_ask("How should saccade answer?", _speaker_choices(outs)))
 
@@ -222,5 +223,5 @@ def main() -> None:
         return
 
     print("\nWrote .env. Start it with:\n\n    python -m saccade\n")
-    if env.get("SACCADE_SENSOR") == "webcam" and sys.platform == "darwin":
+    if env.get("SACCADE_SENSOR") in ("webcam", "av") and sys.platform == "darwin":
         print("macOS: approve the Camera prompt on first run, then rerun.\n")

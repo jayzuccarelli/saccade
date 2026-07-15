@@ -6,6 +6,7 @@ from pathlib import Path
 
 from saccade.setup import (
     _backend_choices,
+    _device_choices,
     _missing_extras,
     _sensor_choices,
     _speaker_choices,
@@ -36,12 +37,15 @@ def test_each_camera_is_separately_pickable():
 
 
 def test_camera_plus_mic_offers_the_av_sensor():
-    envs = _envs(_sensor_choices((CAMS, [], MICS)))
-    assert {
-        "SACCADE_SENSOR": "av",
-        "SACCADE_WEBCAM_INDEX": "0",
-        "SACCADE_MIC_INDEX": "0",
-    } in envs
+    """The av entry names no indices — which camera and which mic are asked
+    next. Defaulting to the first of each pairs a MacBook's webcam with the
+    user's iPhone microphone, which is nobody's intent."""
+    assert {"SACCADE_SENSOR": "av"} in _envs(_sensor_choices((CAMS, [], MICS)))
+
+
+def test_device_choices_set_only_their_own_index():
+    choices = _device_choices("Mic", "SACCADE_MIC_INDEX", MICS)
+    assert choices == [("Mic 0 — Built-in Microphone", {"SACCADE_MIC_INDEX": "0"})]
 
 
 def test_no_av_option_without_both_devices():
