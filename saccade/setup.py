@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from urllib import request
@@ -126,21 +127,41 @@ def _backend_choices(ollama: tuple[bool, str], hears_audio: bool = False) -> lis
 
 KEY_VARS = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
 
+_OUT_VAR = "SACCADE_AUDIO_OUT_INDEX"
 
-def _speaker_choices(outs: list[tuple[int, str]]) -> list[Choice]:
+
+def _piper_state() -> tuple[bool, str]:
+    """Whether Piper can speak, and what to say about it. Probed in a subprocess
+    rather than by importing it — saccade is MIT and piper-tts is GPL, so we run
+    it, we don't link it."""
+    probe = subprocess.run(
+        [sys.executable, "-c", "import piper"], capture_output=True, timeout=30
+    )
+    if probe.returncode != 0:
+        return False, "not installed — pip install piper-tts"
+    return True, "local, free, no key"
+
+
+def _speaker_choices(outs: list[tuple[int, str]], piper: tuple[bool, str]) -> list[Choice]:
+    """Text, then the two ways to make sound. Which output device is a follow-up
+    question, so adding a second engine doesn't multiply the menu by every
+    speaker on the machine."""
     out: list[Choice] = [("Text in the terminal", {"SACCADE_SPEAKER": "print"})]
+    if not outs:
+        return out
     play = "afplay" if sys.platform == "darwin" else "aplay"
-    for i, name in outs:
-        out.append(
-            (
-                f"Speak out loud via {name} (Gemini TTS, needs GEMINI_API_KEY)",
-                {
-                    "SACCADE_SPEAKER": "gemini_tts",
-                    "SACCADE_AUDIO_OUT_INDEX": str(i),
-                    "SACCADE_PLAY_CMD": play,
-                },
-            )
+    out.append(
+        (
+            f"Speak out loud — Piper ({piper[1]})",
+            {"SACCADE_SPEAKER": "piper", "SACCADE_PLAY_CMD": play},
         )
+    )
+    out.append(
+        (
+            "Speak out loud — Gemini TTS (better voice, needs GEMINI_API_KEY)",
+            {"SACCADE_SPEAKER": "gemini_tts", "SACCADE_PLAY_CMD": play},
+        )
+    )
     return out
 
 
@@ -232,10 +253,19 @@ def main() -> None:
         env.update(_ask("Which mic?", _device_choices("Mic", "SACCADE_MIC_INDEX", mics)))
     hears_audio = env.get("SACCADE_SENSOR") in ("mic", "av")
     env.update(_ask("Which model should think?", _backend_choices(ollama, hears_audio)))
-    env.update(_ask("How should saccade answer?", _speaker_choices(outs)))
+    piper = _piper_state()
+    env.update(_ask("How should saccade answer?", _speaker_choices(outs, piper)))
+    if env.get("SACCADE_SPEAKER") in ("piper", "gemini_tts") and outs:
+        env.update(_ask("Out of which speaker?", _device_choices("Output", _OUT_VAR, outs)))
 
     if env.get("SACCADE_GLANCE_BACKEND") == "ollama" and not ollama[0]:
         print(f"\n  Heads up: Ollama is {ollama[1]}\n  saccade will keep retrying until it's up.")
+    if env.get("SACCADE_SPEAKER") == "piper" and not piper[0]:
+        print(
+            "\n  Piper isn't installed yet. Two commands and it can talk:\n\n"
+            "    pip install piper-tts\n"
+            "    python -m piper.download_voices en_US-lessac-medium\n"
+        )
 
     for var in _needed_keys(env):
         key = input(f"\n{var} (blank to set it later): ").strip()

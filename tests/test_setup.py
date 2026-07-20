@@ -78,14 +78,32 @@ def test_found_devices_are_never_reported_missing():
     assert _missing_extras((CAMS, [], []), (IMPORT_HINT, "", "")) == []
 
 
-def test_speaker_offers_text_first_then_each_output():
-    choices = _speaker_choices(OUTS)
-    assert choices[0][1] == {"SACCADE_SPEAKER": "print"}
-    assert _envs(choices)[1]["SACCADE_AUDIO_OUT_INDEX"] == "1"
+PIPER_READY = (True, "local, free, no key")
+PIPER_MISSING = (False, "not installed — pip install piper-tts")
+
+
+def test_speaking_out_loud_defaults_to_local_tts():
+    """Text first, then Piper, then the hosted upgrade. An ambient agent that
+    can't make a sound without a hosted API key is the wrong default — Gemini TTS
+    should be the nicer voice you opt into, not the toll booth for any audio."""
+    speakers = [e["SACCADE_SPEAKER"] for e in _envs(_speaker_choices(OUTS, PIPER_READY))]
+    assert speakers == ["print", "piper", "gemini_tts"]
+
+
+def test_no_speaker_choice_names_a_device():
+    """Which output is asked separately, so a second engine doesn't multiply the
+    menu by every speaker on the machine."""
+    for env in _envs(_speaker_choices(OUTS, PIPER_READY)):
+        assert "SACCADE_AUDIO_OUT_INDEX" not in env
+
+
+def test_piper_state_is_shown_in_the_label():
+    label = _speaker_choices(OUTS, PIPER_MISSING)[1][0]
+    assert "pip install piper-tts" in label
 
 
 def test_speaker_is_text_only_with_no_outputs():
-    assert _envs(_speaker_choices([])) == [{"SACCADE_SPEAKER": "print"}]
+    assert _envs(_speaker_choices([], PIPER_READY)) == [{"SACCADE_SPEAKER": "print"}]
 
 
 def test_every_backend_choice_sets_both_tiers():
@@ -165,6 +183,13 @@ def test_hosted_backend_plus_gemini_tts_asks_for_both_keys():
     for the backend's wrote an .env whose speaker died on the first word."""
     env = {"SACCADE_GLANCE_BACKEND": "openai", "SACCADE_SPEAKER": "gemini_tts"}
     assert _needed_keys(env) == ["OPENAI_API_KEY", "GEMINI_API_KEY"]
+
+
+def test_speaking_locally_needs_no_key_at_all():
+    """The whole point of the local speaker: a machine with no accounts on it can
+    still talk. Ollama thinks, Piper speaks, nothing is asked for and nothing
+    leaves the box."""
+    assert _needed_keys({"SACCADE_GLANCE_BACKEND": "ollama", "SACCADE_SPEAKER": "piper"}) == []
 
 
 def test_gemini_backend_and_gemini_tts_ask_once():

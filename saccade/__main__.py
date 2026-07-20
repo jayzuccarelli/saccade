@@ -98,6 +98,16 @@ def make_backend(kind: str, role: str, c: Config) -> Backend:
 
 
 def make_speaker(c: Config) -> Speaker:
+    if c.speaker == "piper":
+        from saccade.speakers.piper import PiperSpeaker
+
+        return PiperSpeaker(
+            c.piper_voice,
+            c.tts_dir,
+            c.play_cmd,
+            out_index=c.audio_out_index,
+            data_dir=c.piper_data_dir,
+        )
     if c.speaker == "gemini_tts":
         from saccade.speakers.gemini_tts import GeminiTTSSpeaker
 

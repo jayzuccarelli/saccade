@@ -245,7 +245,7 @@ and fill it in. saccade auto-loads it, so `python -m saccade` just works.
 | `sensors/` | input streams — `stub`, `webcam`, `screen`, `mic`, `av` (webcam+mic), `reolink`, `replay` (Protocol in `base.py`) |
 | `devices.py` | `python -m saccade devices` — enumerate cameras/screens/mics/audio-outs |
 | `backends/` | swappable models — `stub`, `ollama` (local, stdlib), `gemini`, `openai`, `anthropic` (the only files that touch a model SDK) |
-| `speakers/` | swappable output — `print` (default), `gemini_tts` (synthesize to wav), `home_assistant` (example of a remote-output speaker) |
+| `speakers/` | swappable output — `print` (default), `piper` (local TTS, no key), `gemini_tts` (hosted TTS), `home_assistant` (example of a remote-output speaker) |
 | `glance.py` | cheap peripheral perceiver → Percept |
 | `focus.py` | on-demand deep reasoner → Decision |
 | `memory.py` | working / episodic / semantic |
@@ -257,7 +257,22 @@ When Focus decides to act, the message goes to a `Speaker`. "Speaker" is the
 generic name for any output — print, audio, an HTTP webhook, a phone push, a
 hardware actuator. Default is `print` (no audio, no key, works out of the box).
 
-Synthesize to a wav with Gemini TTS:
+To actually talk, use Piper: local, offline, no API key, same on Linux, macOS
+and Windows. Install it yourself — it's GPL and saccade is MIT, so saccade runs
+it as a subprocess rather than depending on it:
+
+```bash
+pip install piper-tts
+python -m piper.download_voices en_US-lessac-medium
+SACCADE_SPEAKER=piper python -m saccade
+```
+
+`SACCADE_PIPER_VOICE` picks the voice (`python -m piper.download_voices` with no
+argument lists them). Voices download to the working directory; if you run
+saccade from elsewhere, point `SACCADE_PIPER_DATA_DIR` at them.
+
+Gemini TTS is the hosted upgrade — better voices, at the cost of a key and a
+network round trip per utterance:
 
 ```bash
 SACCADE_SPEAKER=gemini_tts GEMINI_API_KEY=... python -m saccade

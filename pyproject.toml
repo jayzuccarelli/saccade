@@ -55,6 +55,9 @@ strict = true
 # Optional backends/sensors import third-party libs with no type stubs
 # (cv2, sounddevice, google.genai, ...). Treat those as Any rather than vendor stubs.
 ignore_missing_imports = true
+# Local stub shadows: see stubs/numpy/__init__.pyi for why numpy needs one.
+# (per-module follow_imports can't do this job — it's ignored for stub files.)
+mypy_path = "stubs"
 
 [tool.ruff]
 line-length = 100

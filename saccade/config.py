@@ -128,9 +128,13 @@ class Config:
     # a prior session — episodic is on disk and persists across runs. Seconds.
     recent_said_window_s: float = float(os.environ.get("SACCADE_RECENT_SAID_WINDOW", "180"))
 
-    # Speaker (output): "print" (default), "gemini_tts" (synthesize to wav), or
-    # "home_assistant" (synthesize + play on a media_player via HA).
+    # Speaker (output): "print" (default), "piper" (local TTS, no key), "gemini_tts"
+    # (hosted TTS, better voices), or "home_assistant" (play on a media_player via HA).
     speaker: str = os.environ.get("SACCADE_SPEAKER", "print")
+    # piper speaker: which downloaded voice to use, and where voices live (blank =
+    # piper's own default dir). `python -m piper.download_voices` lists them.
+    piper_voice: str = os.environ.get("SACCADE_PIPER_VOICE", "en_US-lessac-medium")
+    piper_data_dir: str = os.environ.get("SACCADE_PIPER_DATA_DIR", "")
     tts_model: str = os.environ.get("SACCADE_TTS_MODEL", "gemini-2.5-flash-preview-tts")
     tts_voice: str = os.environ.get("SACCADE_TTS_VOICE", "Kore")
     tts_dir: str = os.environ.get("SACCADE_TTS_DIR", "utterances")
