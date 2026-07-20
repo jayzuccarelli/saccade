@@ -242,13 +242,17 @@ def _piper_setup_commands() -> str:
     return f"    {install}\n    {exe} -m piper.download_voices en_US-lessac-medium\n"
 
 
-def _speaker_choices(outs: list[tuple[int, str]], piper: tuple[bool, str]) -> list[Choice]:
+def _speaker_choices(piper: tuple[bool, str]) -> list[Choice]:
     """Text, then the two ways to make sound. Which output device is a follow-up
     question, so adding a second engine doesn't multiply the menu by every
-    speaker on the machine."""
+    speaker on the machine.
+
+    Speaking is offered whether or not any output *devices* were enumerated.
+    Listing them needs the audio extra (sounddevice); actually making a noise
+    doesn't — SACCADE_PLAY_CMD hands the wav to afplay/aplay and the OS picks the
+    default device. Gating on the device list denied a fresh install the one
+    speaker that needs no key and no extra at all."""
     out: list[Choice] = [("Text in the terminal", {"SACCADE_SPEAKER": "print"})]
-    if not outs:
-        return out
     play = "afplay" if sys.platform == "darwin" else "aplay"
     out.append(
         (
@@ -377,7 +381,7 @@ def main() -> None:
         )
     )
     piper = _piper_state()
-    env.update(_ask("How should saccade answer?", _speaker_choices(outs, piper)))
+    env.update(_ask("How should saccade answer?", _speaker_choices(piper)))
     if env.get("SACCADE_SPEAKER") in ("piper", "gemini_tts") and outs:
         env.update(_ask("Out of which speaker?", _device_choices("Output", _OUT_VAR, outs)))
 

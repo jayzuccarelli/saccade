@@ -115,24 +115,29 @@ def test_speaking_out_loud_defaults_to_local_tts():
     """Text first, then Piper, then the hosted upgrade. An ambient agent that
     can't make a sound without a hosted API key is the wrong default — Gemini TTS
     should be the nicer voice you opt into, not the toll booth for any audio."""
-    speakers = [e["SACCADE_SPEAKER"] for e in _envs(_speaker_choices(OUTS, PIPER_READY))]
+    speakers = [e["SACCADE_SPEAKER"] for e in _envs(_speaker_choices(PIPER_READY))]
     assert speakers == ["print", "piper", "gemini_tts"]
 
 
 def test_no_speaker_choice_names_a_device():
     """Which output is asked separately, so a second engine doesn't multiply the
     menu by every speaker on the machine."""
-    for env in _envs(_speaker_choices(OUTS, PIPER_READY)):
+    for env in _envs(_speaker_choices(PIPER_READY)):
         assert "SACCADE_AUDIO_OUT_INDEX" not in env
 
 
 def test_piper_state_is_shown_in_the_label():
-    label = _speaker_choices(OUTS, PIPER_MISSING)[1][0]
+    label = _speaker_choices(PIPER_MISSING)[1][0]
     assert "not installed" in label
 
 
-def test_speaker_is_text_only_with_no_outputs():
-    assert _envs(_speaker_choices([], PIPER_READY)) == [{"SACCADE_SPEAKER": "print"}]
+def test_speech_is_offered_without_the_audio_extra():
+    """Found by review. Listing output *devices* needs sounddevice; making a noise
+    doesn't — SACCADE_PLAY_CMD hands the wav to afplay/aplay. Gating the menu on
+    the device list denied a fresh install the one speaker that needs no key and
+    no extra, which is exactly the speaker this PR added."""
+    speakers = [e["SACCADE_SPEAKER"] for e in _envs(_speaker_choices(PIPER_READY))]
+    assert speakers == ["print", "piper", "gemini_tts"]
 
 
 def test_each_tier_sets_only_its_own_backend():
