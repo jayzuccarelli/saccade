@@ -33,7 +33,7 @@ def test_print_speaker_say_is_awaitable():
 
 
 def test_loop_awaits_an_async_speaker(tmp_path):
-    """A salient frame should drive Speaker.say through to completion — proving
+    """A salient frame should drive Speaker.say through to completion, proving
     the loop awaits an async on_action, not just calls it and drops the coroutine."""
     memory = _mem(tmp_path)
     memory.observe_frame(Frame(ts=0.0, meta={"scene": "the mug is empty"}))
@@ -116,7 +116,7 @@ def test_ha_speaker_serves_clip_and_posts_play_media(tmp_path):
         "tok",
         "media_player.living_room",
         serve_host="127.0.0.1",
-        serve_port=0,  # ephemeral — no port collision
+        serve_port=0,  # ephemeral: no port collision
     )
 
     posted = {}
@@ -126,7 +126,7 @@ def test_ha_speaker_serves_clip_and_posts_play_media(tmp_path):
 
     # play_media got a URL pointing at our own server + the synthesized clip
     assert posted["url"].startswith("http://127.0.0.1:") and posted["url"].endswith("/clip.wav")
-    # and that URL is actually serveable — the file is reachable over HTTP
+    # and that URL is actually serveable: the file is reachable over HTTP
     body = urllib.request.urlopen(posted["url"], timeout=5).read()
     assert body.startswith(b"RIFF") and body.endswith(b"\x00\x01" * 100)  # wav with our pcm
     spk._server.shutdown()
@@ -184,7 +184,7 @@ def test_say_routes_to_device_when_index_set(tmp_path, monkeypatch):
 
 
 def test_say_falls_back_to_play_cmd_without_index(tmp_path, monkeypatch):
-    """out_index -1 (default) leaves the device path alone — play_cmd/OS default."""
+    """out_index -1 (default) leaves the device path alone: play_cmd/OS default."""
     spk = _stub_tts(tmp_path, play_cmd="", out_index=-1)
     hit = {"dev": False}
     monkeypatch.setattr(_playback, "_to_device", lambda path, idx: hit.__setitem__("dev", True))
@@ -244,7 +244,7 @@ def test_piper_missing_voice_names_the_download_command(tmp_path, monkeypatch):
 
 def test_piper_kills_a_hung_process_instead_of_waiting_forever(tmp_path, monkeypatch):
     """The loop awaits the speaker, so an unbounded wait here stops the agent
-    watching the room — silently, and until someone restarts it. A truncated .onnx
+    watching the room (silently, and until someone restarts it). A truncated .onnx
     hangs rather than erroring, which is how you reach this in the wild."""
     from saccade.speakers import piper as piper_mod
 

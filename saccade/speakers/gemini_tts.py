@@ -4,7 +4,7 @@ The hosted upgrade over the default Piper speaker: better voices, at the cost of
 an API key and a network round trip per utterance. Worth it when you care how it
 sounds; overkill for "someone's at the door".
 
-Playback (device or command) is shared with the other speakers — see
+Playback (device or command) is shared with the other speakers; see
 `_playback.py`. The SDK import is lazy so the harness has no hard dependency on
 google-genai.
 """

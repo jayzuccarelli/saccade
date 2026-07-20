@@ -12,7 +12,7 @@ def downscale(data: bytes, max_dim: int) -> tuple[bytes, str] | None:
     """Shrink any raster image (JPEG, PNG, ...) so its longest side is <= max_dim,
     re-encoded as JPEG (the cheap tier doesn't need lossless). Returns
     (bytes, "image/jpeg"), or None when the frame should pass through unchanged:
-    max_dim is 0, the image already fits, or Pillow isn't installed — then warn
+    max_dim is 0, the image already fits, or Pillow isn't installed, then warn
     once and keep running; full-size frames still work, they just cost more."""
     global _warned_no_pil
     if not max_dim:
@@ -21,7 +21,7 @@ def downscale(data: bytes, max_dim: int) -> tuple[bytes, str] | None:
         from PIL import Image
     except ImportError:
         if not _warned_no_pil:
-            print("[saccade] pillow not installed — sending full-size frames (uv pip install pillow)")
+            print("[saccade] pillow not installed: sending full-size frames (uv pip install pillow)")
             _warned_no_pil = True
         return None
 

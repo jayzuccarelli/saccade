@@ -1,7 +1,7 @@
 """OpenAI backend. Structured output via response_format json_schema (strict).
 
 Lazy import so the harness runs without the SDK. Follows the OpenAI spec but
-hasn't been validated live by the author — please report issues.
+hasn't been validated live by the author; please report issues.
 
     pip install openai   # then set OPENAI_API_KEY
 """
@@ -22,7 +22,7 @@ class OpenAIBackend:
         self._client: Any = None
 
     def _client_lazy(self) -> Any:
-        # Reuse one client — it owns a connection pool meant to live across calls.
+        # Reuse one client: it owns a connection pool meant to live across calls.
         if self._client is None:
             from openai import AsyncOpenAI
 

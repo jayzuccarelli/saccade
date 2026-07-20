@@ -1,7 +1,7 @@
-"""Ollama backend — local, private, free. Stdlib only.
+"""Ollama backend: local, private, free. Stdlib only.
 
 Talks to a local Ollama instance (http://localhost:11434 by default; override
-with OLLAMA_HOST or SACCADE_OLLAMA_HOST). No new dependencies — urllib + json.
+with OLLAMA_HOST or SACCADE_OLLAMA_HOST). No new dependencies: urllib + json.
 
     curl -fsSL https://ollama.com/install.sh | sh
     ollama pull gemma3:4b           # ~3GB, multimodal, fast (Glance default)
@@ -10,7 +10,7 @@ with OLLAMA_HOST or SACCADE_OLLAMA_HOST). No new dependencies — urllib + json.
     SACCADE_GLANCE_BACKEND=ollama SACCADE_FOCUS_BACKEND=ollama python -m saccade
 
 Structured output uses Ollama's native `format` field (a JSON Schema), enforced
-by the runtime — not prompt-engineered. Vision frames go as base64 in `images`.
+by the runtime, not prompt-engineered. Vision frames go as base64 in `images`.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ _DEFAULT_HOST = "http://localhost:11434"
 
 class OllamaError(RuntimeError):
     """Ollama refused, with the command that fixes it. The loop prints the
-    message verbatim, so it has to read like an instruction — a bare
+    message verbatim, so it has to read like an instruction: a bare
     `URLError: [Errno 61] Connection refused` on every tick tells you nothing."""
 
 
@@ -68,15 +68,15 @@ class OllamaBackend:
         try:
             with request.urlopen(req, timeout=self.timeout) as resp:
                 data = json.loads(resp.read())
-        except error.HTTPError as e:  # subclasses URLError — catch it first
+        except error.HTTPError as e:  # subclasses URLError; catch it first
             if e.code == 404:
                 raise OllamaError(
-                    f"Ollama has no model {self.model!r} — pull it: ollama pull {self.model}"
+                    f"Ollama has no model {self.model!r}; pull it: ollama pull {self.model}"
                 ) from e
             raise OllamaError(f"Ollama returned HTTP {e.code}") from e
         except error.URLError as e:
             raise OllamaError(
-                f"Ollama isn't reachable at {self.host} — start it: ollama serve"
+                f"Ollama isn't reachable at {self.host}; start it: ollama serve"
             ) from e
         content: str = data.get("message", {}).get("content", "")
         return content

@@ -1,5 +1,5 @@
 """The AV sensor fuses webcam + mic into one Frame. Capture needs hardware, but
-the fusion — one tick yields both an image and an audio clip — is the contract
+the fusion (one tick yields both an image and an audio clip) is the contract
 worth pinning, with cv2 and the mic faked."""
 
 import asyncio

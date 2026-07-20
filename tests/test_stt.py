@@ -18,7 +18,7 @@ class FakeTranscriber:
 
 
 def _mic_with(transcriber, monkeypatch):
-    """A MicSensor whose recording is faked — no PortAudio in CI."""
+    """A MicSensor whose recording is faked: no PortAudio in CI."""
     monkeypatch.setattr("saccade.sensors.mic.require_audio", lambda: None)
     sensor = MicSensor(index=0, fps=1.0, transcriber=transcriber)
     monkeypatch.setattr(sensor, "_record", lambda: b"\x00\x00" * 16000)

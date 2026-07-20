@@ -1,4 +1,4 @@
-"""Replay a folder of images as a Sensor — deterministic, API-free tuning.
+"""Replay a folder of images as a Sensor: deterministic, API-free tuning.
 
 Lets you record real scenes once, then iterate on prompts/behavior against the
 same footage without a live camera or burning API quota. Reads raw file bytes;

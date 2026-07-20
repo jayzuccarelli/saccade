@@ -28,14 +28,14 @@ class ReolinkSensor:
 
         cap = cv2.VideoCapture(self.rtsp_url)
         if not cap.isOpened():
-            # Redact userinfo — this message lands in terminals and bug reports.
+            # Redact userinfo: this message lands in terminals and bug reports.
             redacted = re.sub(r"//[^@/]+@", "//***@", self.rtsp_url)
             raise RuntimeError(f"could not open RTSP stream: {redacted}")
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
         # A reader thread consumes frames as fast as the camera sends them (~15-20fps)
         # and keeps only the newest. Without it, reading one frame per `interval` from
-        # an undrained buffer returns ever-older frames — the feed falls minutes behind
+        # an undrained buffer returns ever-older frames: the feed falls minutes behind
         # real-time, so the agent reacts to the past. Draining keeps us on the present.
         latest: dict[str, Any] = {"frame": None}
         stop = threading.Event()
@@ -49,7 +49,7 @@ class ReolinkSensor:
                     fails = 0
                     continue
                 # A 24/7 camera drops occasionally. After ~2s of failed reads assume
-                # the stream died and reopen it — otherwise we'd silently serve the
+                # the stream died and reopen it; otherwise we'd silently serve the
                 # last frame forever (the stale-feed bug, one connection drop later).
                 fails += 1
                 if fails >= 40:
@@ -67,13 +67,13 @@ class ReolinkSensor:
                 frame = latest["frame"]
                 if frame is None:
                     continue
-                # full resolution — Glance downscales its own input; Focus wants detail
+                # full resolution: Glance downscales its own input; Focus wants detail
                 ok, buf = cv2.imencode(".jpg", frame)
                 if ok:
                     yield Frame(ts=time.time(), image=buf.tobytes(), mime="image/jpeg")
         finally:
             stop.set()
-            # Let the reader leave cap.read() before releasing — releasing under
+            # Let the reader leave cap.read() before releasing: releasing under
             # a blocked read is a use-after-free in OpenCV's FFmpeg backend.
             reader.join(timeout=2)
             cap.release()

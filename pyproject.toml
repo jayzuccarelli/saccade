@@ -1,7 +1,7 @@
 [project]
 name = "saccade"
 version = "0.2.0"
-description = "An open harness for proactive ambient agents — peripheral Glance, focused Focus."
+description = "An open harness for proactive ambient agents: peripheral Glance, focused Focus."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -20,7 +20,7 @@ classifiers = [
 ]
 dependencies = []  # core runs on the stdlib alone (Ollama backend included)
 
-# Lower bounds only — floors below current stable, so consumers get a working
+# Lower bounds only: floors below current stable, so consumers get a working
 # API without us dictating their upper range. uv.lock pins dev, not consumers.
 [project.optional-dependencies]
 gemini = ["google-genai>=1.21.0"]  # response_json_schema landed in 1.21.0; earlier SDKs reject it
@@ -57,7 +57,7 @@ strict = true
 # (cv2, sounddevice, google.genai, ...). Treat those as Any rather than vendor stubs.
 ignore_missing_imports = true
 # Local stub shadows: see stubs/numpy/__init__.pyi for why numpy needs one.
-# (per-module follow_imports can't do this job — it's ignored for stub files.)
+# (per-module follow_imports can't do this job; it's ignored for stub files.)
 mypy_path = "stubs"
 
 [tool.ruff]

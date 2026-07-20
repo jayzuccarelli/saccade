@@ -1,4 +1,4 @@
-"""A Sensor is any input stream. Camera, mic, screen — all the same shape.
+"""A Sensor is any input stream. Camera, mic, screen: all the same shape.
 
 This Protocol is the whole reason the harness is input-agnostic: a new modality
 is a new file implementing `stream()`, and nothing in the core changes.

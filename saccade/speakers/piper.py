@@ -8,7 +8,7 @@ Piper is run as a subprocess, never imported, and that is deliberate:
 piper-tts is GPL-3.0-or-later while saccade is MIT. Importing it into our
 process is linkage; running it as a separate program is aggregation, which keeps
 the two licenses at arm's length. It also keeps onnxruntime out of saccade's
-dependency tree. For the same reason piper-tts is *not* in our extras — the user
+dependency tree. For the same reason piper-tts is *not* in our extras: the user
 installs it themselves and we call whatever they installed:
 
     uv pip install piper-tts
@@ -74,7 +74,7 @@ class PiperSpeaker:
             await proc.wait()
             raise PiperError(
                 f"Piper didn't finish in {SYNTH_TIMEOUT_S:.0f}s and was killed. A cold "
-                f"model load is slow, but not this slow — check that {self.voice!r} is a "
+                f"model load is slow, but not this slow; check that {self.voice!r} is a "
                 f"complete download (a truncated .onnx hangs instead of erroring)."
             ) from None
         if proc.returncode != 0:
@@ -87,17 +87,17 @@ class PiperSpeaker:
         and both are one command away from working."""
         # Name the interpreter, not a bare `pip`/`python`. A Mac has no `python`
         # on PATH, and installing with the wrong pip lands piper somewhere the
-        # running saccade can't import from — which is how you get piper
+        # running saccade can't import from, which is how you get piper
         # installed and "No module named piper" in the same terminal. Both
         # installers are offered because a uv-made venv ships without pip.
         if "No module named" in stderr:
             return (
-                f"Piper isn't installed in {sys.executable} — "
+                f"Piper isn't installed in {sys.executable}: "
                 f"`uv pip install piper-tts`, or `pip install piper-tts` in an activated venv"
             )
         if self.voice in stderr or "voice" in stderr.lower():
             return (
-                f"Piper has no voice {self.voice!r} — download it: "
+                f"Piper has no voice {self.voice!r}; download it: "
                 f"{sys.executable} -m piper.download_voices {self.voice}"
             )
         return f"Piper failed: {stderr.strip().splitlines()[-1] if stderr.strip() else 'no output'}"

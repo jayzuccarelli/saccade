@@ -1,4 +1,4 @@
-"""Measure Glance's salience judgment — the hard part — instead of tuning by vibe.
+"""Measure Glance's salience judgment, the hard part, instead of tuning by vibe.
 
 An eval is a set of cases (a scene + whether it *should* have been flagged worth
 a closer look). The runner asks Glance, compares to the label, and scores it:
@@ -99,7 +99,7 @@ async def _main(path: str) -> None:
         return Memory(f"{tmp}/ep.jsonl", f"{tmp}/prefs.md")
 
     metrics, rows = await evaluate(cases, glance, fresh_memory)
-    print(f"\nsaccade evals — backend={c.glance_backend}  ({metrics['n']} cases)\n")
+    print(f"\nsaccade evals: backend={c.glance_backend}  ({metrics['n']} cases)\n")
     for name, exp, got, sal in rows:
         mark = "ok " if exp == got else "MISS"
         print(f"  [{mark}] expect={int(exp)} got={int(got)} sal={sal:0.2f}  {name}")

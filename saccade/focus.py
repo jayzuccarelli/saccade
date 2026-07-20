@@ -1,4 +1,4 @@
-"""Focus — sharp attention. The expensive model, only on escalation.
+"""Focus: sharp attention. The expensive model, only on escalation.
 
 It reasons over the trigger + recent context + your preferences and decides
 whether to speak and what to say. There is no rule gating this: "should I
@@ -14,8 +14,8 @@ from saccade.memory import Memory
 from saccade.schema import DECISION_SCHEMA, Decision, Percept, Window, decision_from
 
 PROMPT = """You are the focused attention of an ambient assistant. Something caught \
-the periphery's attention and you are now looking (and listening) closely — at a short \
-clip of the last few seconds (images in time order, plus audio if present) — to decide \
+the periphery's attention and you are now looking (and listening) closely: at a short \
+clip of the last few seconds (images in time order, plus audio if present), to decide \
 whether to speak.
 
 What just stood out: {summary}
@@ -26,7 +26,7 @@ What the user has told you about when to help (their preferences):
 {prefs}
 
 Decide whether saying something now is genuinely worth interrupting the user. \
-Don't repeat something you just said — but DO speak up if something new or urgent \
+Don't repeat something you just said, but DO speak up if something new or urgent \
 warrants it, even right after speaking. Respect their preferences. If it isn't \
 worth it, stay quiet. Respond with ONLY a JSON object (think in `reasoning` first, \
 then decide):

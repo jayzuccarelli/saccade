@@ -1,4 +1,4 @@
-"""Play a wav — to a chosen output device, through a command, or not at all.
+"""Play a wav: to a chosen output device, through a command, or not at all.
 
 Shared by every speaker that synthesizes to a file. The box saccade watches from
 may have no audio out at all, so "wrote the clip" is a valid outcome and
@@ -7,7 +7,7 @@ playback is the optional half.
   - `out_index` (SACCADE_AUDIO_OUT_INDEX): a specific device by index (the
     numbers `saccade devices` lists), via sounddevice. The symmetric twin of
     picking a mic. Wins over play_cmd when set.
-  - `play_cmd` (SACCADE_PLAY_CMD): a command taking the file path — `aplay`,
+  - `play_cmd` (SACCADE_PLAY_CMD): a command taking the file path: `aplay`,
     `afplay`, or a wrapper that pushes it somewhere. Uses the OS default device.
 """
 
@@ -19,7 +19,7 @@ from pathlib import Path
 
 
 def _to_device(path: Path, out_index: int) -> None:
-    """Blocking playback to one specific device — callers run it off-thread.
+    """Blocking playback to one specific device; callers run it off-thread.
 
     sounddevice/numpy are imported here so the audio extra stays optional: a
     speaker that only writes files shouldn't need PortAudio installed."""
@@ -37,7 +37,7 @@ def _to_device(path: Path, out_index: int) -> None:
 
 
 # A player that never exits (wedged audio daemon, a device that vanished mid-clip)
-# would otherwise hang here forever, and the loop awaits the speaker — so one stuck
+# would otherwise hang here forever, and the loop awaits the speaker, so one stuck
 # `afplay` stops the agent watching the room, permanently and silently. Utterances
 # are a few seconds; a minute means something is wrong, not slow.
 PLAY_TIMEOUT_S = 60.0
@@ -55,4 +55,4 @@ async def play(path: Path, play_cmd: str, out_index: int) -> None:
             # Losing one utterance beats losing the agent: kill it and keep going.
             proc.kill()
             await proc.wait()
-            print(f"warning: {play_cmd.split()[0]} hung on {path.name} — killed it")
+            print(f"warning: {play_cmd.split()[0]} hung on {path.name}; killed it")

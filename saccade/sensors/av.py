@@ -1,4 +1,4 @@
-"""Webcam + microphone fused into one Sensor — a glance that both sees and hears.
+"""Webcam + microphone fused into one Sensor: a glance that both sees and hears.
 
     SACCADE_SENSOR=av python -m saccade
 
@@ -56,7 +56,7 @@ class AVSensor:
             hint = ""
             if sys.platform == "darwin":
                 hint = (
-                    " — on macOS, grant Camera access to your terminal app"
+                    ": on macOS, grant Camera access to your terminal app"
                     " (System Settings > Privacy & Security > Camera), then rerun"
                 )
             raise RuntimeError(f"could not open webcam index {self.webcam_index}{hint}")
@@ -78,7 +78,7 @@ class AVSensor:
                         audio_mime="audio/wav",
                     )
                 else:
-                    # Transcribed here, so the audio stays here — the picture still
+                    # Transcribed here, so the audio stays here; the picture still
                     # goes to whichever backend, but the room is never uploaded.
                     yield Frame(
                         ts=time.time(),

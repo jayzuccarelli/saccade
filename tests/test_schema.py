@@ -1,4 +1,4 @@
-"""Parsing model output must be forgiving — models wrap JSON in prose/fences."""
+"""Parsing model output must be forgiving: models wrap JSON in prose/fences."""
 
 from saccade.schema import decision_from, percept_from
 

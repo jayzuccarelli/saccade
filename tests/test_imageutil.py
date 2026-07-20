@@ -26,7 +26,7 @@ def test_downscale_shrinks_jpeg_to_max_dim():
 
 
 def test_downscale_shrinks_png_and_reencodes_jpeg():
-    # The screen sensor emits PNG — Retina grabs are multi-MB and must not
+    # The screen sensor emits PNG: Retina grabs are multi-MB and must not
     # bypass the cheap tier's downscale.
     big = _img(2880, 1800, "PNG")
     small, mime = downscale(big, 768)
