@@ -7,14 +7,18 @@ from pathlib import Path
 
 from saccade import setup as setuplib
 from saccade.setup import (
+    GLANCE_VAR,
     _device_choices,
     _focus_choices,
     _glance_choices,
+    _merge_sensors,
     _missing_extras,
     _needed_keys,
     _notes,
+    _one_sensor_choices,
     _piper_setup_commands,
     _sensor_choices,
+    _sensor_kinds,
     _speaker_choices,
     _write_env,
 )
@@ -260,3 +264,34 @@ def test_local_backend_printing_text_needs_no_key():
 def test_local_backend_speaking_still_needs_the_tts_key():
     env = {"SACCADE_GLANCE_BACKEND": "ollama", "SACCADE_SPEAKER": "gemini_tts"}
     assert _needed_keys(env) == ["GEMINI_API_KEY"]
+
+
+def test_several_at_once_is_offered_once_there_are_two_inputs():
+    assert any(e.get("SACCADE_SENSOR") == "multi" for e in _envs(_sensor_choices((CAMS, SCREENS, MICS))))
+
+
+def test_no_several_option_with_a_single_input():
+    assert not any(e.get("SACCADE_SENSOR") == "multi" for e in _envs(_sensor_choices(([], SCREENS, []))))
+
+
+def test_merging_keeps_each_kind_and_its_index():
+    """screen + mic becomes one SACCADE_SENSOR plus both index vars."""
+    picks = [c for c in _one_sensor_choices(([], SCREENS, MICS))]
+    env, dropped = _merge_sensors(picks)
+    assert env["SACCADE_SENSOR"] == "screen,mic"
+    assert env["SACCADE_SCREEN_INDEX"] == "1" and env["SACCADE_MIC_INDEX"] == "0"
+    assert dropped == []
+
+
+def test_two_of_one_kind_are_reported_not_silently_dropped():
+    """There's one SACCADE_WEBCAM_INDEX, so a second camera would overwrite the
+    first. Watching a camera you didn't pick, with no message, is the bad outcome."""
+    env, dropped = _merge_sensors(_one_sensor_choices((CAMS, [], [])))
+    assert env["SACCADE_SENSOR"] == "webcam"
+    assert env["SACCADE_WEBCAM_INDEX"] == "0"  # the first pick wins
+    assert len(dropped) == 1 and "Camera 1" in dropped[0]
+
+
+def test_a_multi_pick_that_includes_a_mic_still_leads_with_the_hearing_backend():
+    assert _sensor_kinds({"SACCADE_SENSOR": "screen,mic"}) == {"screen", "mic"}
+    assert _glance_choices((True, "ready"), hears_audio=True)[0][1][GLANCE_VAR] == "gemini"

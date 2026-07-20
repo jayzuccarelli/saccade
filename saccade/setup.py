@@ -43,7 +43,9 @@ def _ask(question: str, choices: list[Choice]) -> dict[str, str]:
         print("  (pick one of the numbers above)")
 
 
-def _sensor_choices(devs: Devices) -> list[Choice]:
+def _one_sensor_choices(devs: Devices) -> list[Choice]:
+    """Every individual device, one entry each. The building block for both the
+    single pick and the several-at-once pick."""
     cams, screens, mics = devs
     out: list[Choice] = []
     for i, desc in cams:
@@ -56,13 +58,70 @@ def _sensor_choices(devs: Devices) -> list[Choice]:
         )
     for i, name in mics:
         out.append((f"Mic {i} — {name}", {"SACCADE_SENSOR": "mic", "SACCADE_MIC_INDEX": str(i)}))
+    return out
+
+
+def _sensor_kinds(env: dict[str, str]) -> set[str]:
+    """The sensor kinds this env selects. A single name, or several after a
+    "several at once" pick — every downstream question (does it hear? does macOS
+    need a camera prompt?) has to look at all of them, not just the string."""
+    return {k.strip() for k in env.get("SACCADE_SENSOR", "").split(",") if k.strip()}
+
+
+def _merge_sensors(picked: list[Choice]) -> tuple[dict[str, str], list[str]]:
+    """Fold several single-device picks into one env block, e.g. screen + mic ->
+    SACCADE_SENSOR=screen,mic plus each index var.
+
+    Two of the same kind can't both be expressed: there's one
+    SACCADE_WEBCAM_INDEX, so a second camera would silently overwrite the first.
+    Rather than quietly watching a camera they didn't choose, the extras come
+    back as `dropped` for the caller to say out loud."""
+    env: dict[str, str] = {}
+    kinds: list[str] = []
+    dropped: list[str] = []
+    for label, choice in picked:
+        kind = choice["SACCADE_SENSOR"]
+        if kind in kinds:
+            dropped.append(label)
+            continue
+        kinds.append(kind)
+        env.update({k: v for k, v in choice.items() if k != "SACCADE_SENSOR"})
+    env["SACCADE_SENSOR"] = ",".join(kinds)
+    return env, dropped
+
+
+def _sensor_choices(devs: Devices) -> list[Choice]:
+    cams, screens, mics = devs
+    out: list[Choice] = _one_sensor_choices(devs)
+    singles = len(out)
     if cams and mics:
         # Which camera and which mic is a follow-up question — pairing the first
         # of each looks reasonable until you meet a Mac whose first mic is the
         # user's iPhone and whose first camera is the built-in webcam.
         out.append(("A camera and a mic together — see and hear at once", {"SACCADE_SENSOR": "av"}))
+    if singles >= 2:
+        # Distinct from `av`: that fuses one camera grab and one mic clip into a
+        # single Frame describing one instant. This just runs several inputs at
+        # their own pace and interleaves them — watch the screen, hear the room.
+        out.append(("Several at once — pick which on the next screen", {"SACCADE_SENSOR": "multi"}))
     out.append(("Nothing — scripted demo, no hardware", {"SACCADE_SENSOR": "stub"}))
     return out
+
+
+def _ask_many(question: str, choices: list[Choice]) -> list[Choice]:
+    """Like _ask, but takes several: comma-separated numbers. Order is preserved
+    and repeats collapse, so "3,1,3" means the third and the first."""
+    print(f"\n{question}")
+    for n, (label, _) in enumerate(choices, start=1):
+        print(f"  [{n}] {label}")
+    while True:
+        raw = input(f"  > [comma-separated, 1-{len(choices)}, e.g. 1,3] ").strip()
+        if not raw:
+            return [choices[0]]
+        picks = [p.strip() for p in raw.split(",") if p.strip()]
+        if picks and all(p.isdigit() and 1 <= int(p) <= len(choices) for p in picks):
+            return [choices[i] for i in dict.fromkeys(int(p) - 1 for p in picks)]
+        print("  (numbers from the list, separated by commas)")
 
 
 def _device_choices(kind: str, var: str, items: list[tuple[int, str]]) -> list[Choice]:
@@ -292,13 +351,19 @@ def main() -> None:
     ollama = _ollama_state()
     env: dict[str, str] = {}
     env.update(_ask("What should saccade watch or hear?", _sensor_choices(devs)))
+    if env.get("SACCADE_SENSOR") == "multi":
+        picked = _ask_many("Which ones?", _one_sensor_choices(devs))
+        merged, dropped = _merge_sensors(picked)
+        for label in dropped:
+            print(f"  note: skipped {label} — only one of each kind for now")
+        env.update(merged)
     if env.get("SACCADE_SENSOR") == "av":
         env.update(_ask("Which camera?", _device_choices("Camera", "SACCADE_WEBCAM_INDEX", cams)))
         env.update(_ask("Which mic?", _device_choices("Mic", "SACCADE_MIC_INDEX", mics)))
     # Two tiers, two questions. One question set both, which quietly threw away
     # the whole point of the split: cheap eyes that run constantly, an expensive
     # brain that runs almost never.
-    hears_audio = env.get("SACCADE_SENSOR") in ("mic", "av")
+    hears_audio = bool({"mic", "av"} & _sensor_kinds(env))
     env.update(
         _ask(
             "What keeps watching?  (runs ~1x/sec, looks at every frame)",
@@ -333,5 +398,5 @@ def main() -> None:
     # no `python` on it at all (macOS), and the one it does have is often not the
     # venv holding saccade's deps.
     print(f"\nWrote .env. Start it with:\n\n    {sys.executable} -m saccade\n")
-    if env.get("SACCADE_SENSOR") in ("webcam", "av") and sys.platform == "darwin":
+    if {"webcam", "av"} & _sensor_kinds(env) and sys.platform == "darwin":
         print("macOS: approve the Camera prompt on first run, then rerun.\n")

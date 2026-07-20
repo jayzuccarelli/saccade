@@ -28,29 +28,40 @@ if TYPE_CHECKING:
 
 
 def make_sensor(c: Config) -> Sensor:
-    if c.sensor == "webcam":
+    """One sensor, or several merged. `SACCADE_SENSOR=screen,mic` runs both and
+    interleaves their frames; a single name behaves exactly as before."""
+    kinds = [k.strip() for k in c.sensor.split(",") if k.strip()]
+    if len(kinds) > 1:
+        from saccade.sensors.multi import MultiSensor
+
+        return MultiSensor([_one_sensor(k, c) for k in kinds])
+    return _one_sensor(kinds[0] if kinds else "stub", c)
+
+
+def _one_sensor(kind: str, c: Config) -> Sensor:
+    if kind == "webcam":
         from saccade.sensors.webcam import WebcamSensor
 
         return WebcamSensor(c.webcam_index, c.capture_fps)
-    if c.sensor == "screen":
+    if kind == "screen":
         from saccade.sensors.screen import ScreenSensor
 
         return ScreenSensor(c.screen_index, c.capture_fps)
-    if c.sensor == "mic":
+    if kind == "mic":
         from saccade.sensors.mic import MicSensor
 
         return MicSensor(c.mic_index if c.mic_index >= 0 else None, c.capture_fps)
-    if c.sensor == "av":
+    if kind == "av":
         from saccade.sensors.av import AVSensor
 
         return AVSensor(
             c.webcam_index, c.mic_index if c.mic_index >= 0 else None, c.capture_fps
         )
-    if c.sensor == "reolink":
+    if kind == "reolink":
         from saccade.sensors.reolink import ReolinkSensor
 
         return ReolinkSensor(c.rtsp_url, c.capture_fps)
-    if c.sensor == "replay":
+    if kind == "replay":
         from saccade.sensors.replay import ReplaySensor
 
         return ReplaySensor(c.replay_dir, c.capture_fps)

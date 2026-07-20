@@ -220,6 +220,20 @@ SACCADE_SENSOR=av SACCADE_GLANCE_BACKEND=gemini SACCADE_FOCUS_BACKEND=gemini \
   GEMINI_API_KEY=... python -m saccade
 ```
 
+**Watch and listen to different things at once.** Comma-separate the sensors and
+each runs at its own pace, frames interleaved. This is the one to reach for when
+the inputs are independent (watch the screen, hear the room); `av` is the one for
+when the picture and the sound have to describe the same instant:
+
+```bash
+uv pip install -e '.[screen,audio]'
+SACCADE_SENSOR=screen,mic SACCADE_GLANCE_BACKEND=gemini \
+  GEMINI_API_KEY=... uv run python -m saccade
+```
+
+If any one of them fails, the run stops rather than quietly continuing on the
+inputs that still work.
+
 **Point it at an RTSP camera** (Reolink or anything that speaks RTSP). Give the
 parts and saccade assembles + URL-encodes the URL — a password with `@ : / #`
 won't break it:
