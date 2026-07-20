@@ -86,9 +86,11 @@ def _ollama_state() -> tuple[bool, str]:
     return True, f"ready, {len(models)} model(s) pulled"
 
 
-def _backend_choices(ollama: tuple[bool, str]) -> list[Choice]:
+def _backend_choices(ollama: tuple[bool, str], hears_audio: bool = False) -> list[Choice]:
     """Local-first: Ollama leads when it can actually answer, since it's free and
-    the frames never leave the machine."""
+    the frames never leave the machine. Gemini leads when the sensor captures
+    audio, since it's the only backend that forwards it — the others would take
+    the mic pick and silently drop the audio half."""
     usable, tag = ollama
     out: list[Choice] = [
         (
@@ -114,6 +116,11 @@ def _backend_choices(ollama: tuple[bool, str]) -> list[Choice]:
     ]
     if not usable:
         out.append(out.pop(0))  # don't lead with something they can't run
+    if hears_audio:
+        gemini = next(
+            n for n, (_, env) in enumerate(out) if env["SACCADE_GLANCE_BACKEND"] == "gemini"
+        )
+        out.insert(0, out.pop(gemini))
     return out
 
 
@@ -149,6 +156,26 @@ def _missing_extras(devs: Devices, hints: tuple[str, str, str]) -> list[str]:
         for name, items, hint in zip(names, found, hints, strict=True)
         if not items and hint.startswith("uv pip install")
     ]
+
+
+def _notes(hints: tuple[str, str, str]) -> list[str]:
+    """Hints worth printing after the extras block. That block already covered the
+    `uv pip install` ones, so match on that prefix rather than a bare "install",
+    or the PortAudio hint ("apt install libportaudio2") gets swallowed and the
+    user is left with no audio devices and nothing to act on."""
+    return [hint for hint in hints if hint and not hint.startswith("uv pip install")]
+
+
+def _needed_keys(env: dict[str, str]) -> list[str]:
+    """Key vars the picks actually require. The backend and the speaker are
+    separate asks: thinking with OpenAI while speaking with Gemini TTS needs both,
+    and prompting for only the backend's key wrote an .env whose speaker failed on
+    the first spoken word."""
+    backend = env.get("SACCADE_GLANCE_BACKEND", "stub")
+    needed = [KEY_VARS[backend]] if backend in KEY_VARS else []
+    if env.get("SACCADE_SPEAKER") == "gemini_tts" and KEY_VARS["gemini"] not in needed:
+        needed.append(KEY_VARS["gemini"])
+    return needed
 
 
 def _write_env(path: Path, env: dict[str, str]) -> bool:
@@ -194,9 +221,8 @@ def main() -> None:
             f"devices can't be listed.\n  Install it, then rerun setup:\n\n"
             f"    uv pip install -e '.[{joined}]'\n"
         )
-    for hint in (cam_hint, screen_hint, audio_hint):
-        if hint and "install" not in hint:
-            print(f"  note: {hint}")
+    for hint in _notes((cam_hint, screen_hint, audio_hint)):
+        print(f"  note: {hint}")
 
     ollama = _ollama_state()
     env: dict[str, str] = {}
@@ -204,20 +230,17 @@ def main() -> None:
     if env.get("SACCADE_SENSOR") == "av":
         env.update(_ask("Which camera?", _device_choices("Camera", "SACCADE_WEBCAM_INDEX", cams)))
         env.update(_ask("Which mic?", _device_choices("Mic", "SACCADE_MIC_INDEX", mics)))
-    env.update(_ask("Which model should think?", _backend_choices(ollama)))
+    hears_audio = env.get("SACCADE_SENSOR") in ("mic", "av")
+    env.update(_ask("Which model should think?", _backend_choices(ollama, hears_audio)))
     env.update(_ask("How should saccade answer?", _speaker_choices(outs)))
 
     if env.get("SACCADE_GLANCE_BACKEND") == "ollama" and not ollama[0]:
         print(f"\n  Heads up: Ollama is {ollama[1]}\n  saccade will keep retrying until it's up.")
 
-    backend = env.get("SACCADE_GLANCE_BACKEND", "stub")
-    needs_key = KEY_VARS.get(backend) or (
-        KEY_VARS["gemini"] if env.get("SACCADE_SPEAKER") == "gemini_tts" else None
-    )
-    if needs_key:
-        key = input(f"\n{needs_key} (blank to set it later): ").strip()
+    for var in _needed_keys(env):
+        key = input(f"\n{var} (blank to set it later): ").strip()
         if key:
-            env[needs_key] = key
+            env[var] = key
 
     if not _write_env(Path(".env"), env):
         return

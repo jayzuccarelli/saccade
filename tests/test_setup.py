@@ -8,6 +8,8 @@ from saccade.setup import (
     _backend_choices,
     _device_choices,
     _missing_extras,
+    _needed_keys,
+    _notes,
     _sensor_choices,
     _speaker_choices,
     _write_env,
@@ -123,3 +125,57 @@ def test_write_env_emits_loadable_lines(tmp_path: Path):
     body = path.read_text()
     assert "SACCADE_SENSOR=webcam" in body
     assert "SACCADE_WEBCAM_INDEX=1" in body
+
+
+def test_portaudio_hint_survives_the_note_filter():
+    """It says "apt install libportaudio2", so a bare "install" match swallowed it
+    and left a Linux box with no audio devices and nothing to act on."""
+    assert PORTAUDIO_HINT in _notes(("", "", PORTAUDIO_HINT))
+
+
+def test_extras_hints_are_not_repeated_as_notes():
+    """The extras block already printed the `uv pip install` line."""
+    assert _notes((IMPORT_HINT, "", "")) == []
+
+
+def test_display_failure_is_still_a_note():
+    assert DISPLAY_HINT in _notes(("", DISPLAY_HINT, ""))
+
+
+def test_audio_sensor_leads_with_the_backend_that_hears():
+    """Gemini is the only backend that forwards Frame.audio, so accepting the
+    default with a mic selected must not hand you one that drops it."""
+    heard = _backend_choices((True, "ready"), hears_audio=True)
+    assert heard[0][1]["SACCADE_GLANCE_BACKEND"] == "gemini"
+
+
+def test_video_only_still_leads_with_ollama():
+    seen = _backend_choices((True, "ready"), hears_audio=False)
+    assert seen[0][1]["SACCADE_GLANCE_BACKEND"] == "ollama"
+
+
+def test_promoting_gemini_keeps_every_backend_on_the_menu():
+    heard = _backend_choices((True, "ready"), hears_audio=True)
+    assert len(heard) == len(_backend_choices((True, "ready")))
+    assert len(_envs(heard)) == len({e["SACCADE_GLANCE_BACKEND"] for e in _envs(heard)})
+
+
+def test_hosted_backend_plus_gemini_tts_asks_for_both_keys():
+    """Thinking with OpenAI and speaking with Gemini needs two keys; asking only
+    for the backend's wrote an .env whose speaker died on the first word."""
+    env = {"SACCADE_GLANCE_BACKEND": "openai", "SACCADE_SPEAKER": "gemini_tts"}
+    assert _needed_keys(env) == ["OPENAI_API_KEY", "GEMINI_API_KEY"]
+
+
+def test_gemini_backend_and_gemini_tts_ask_once():
+    env = {"SACCADE_GLANCE_BACKEND": "gemini", "SACCADE_SPEAKER": "gemini_tts"}
+    assert _needed_keys(env) == ["GEMINI_API_KEY"]
+
+
+def test_local_backend_printing_text_needs_no_key():
+    assert _needed_keys({"SACCADE_GLANCE_BACKEND": "ollama", "SACCADE_SPEAKER": "print"}) == []
+
+
+def test_local_backend_speaking_still_needs_the_tts_key():
+    env = {"SACCADE_GLANCE_BACKEND": "ollama", "SACCADE_SPEAKER": "gemini_tts"}
+    assert _needed_keys(env) == ["GEMINI_API_KEY"]
