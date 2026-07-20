@@ -1,4 +1,4 @@
-"""Probing needs hardware, but naming what was probed is pure logic — and it's
+"""Probing needs hardware, but naming what was probed is pure logic, and it's
 where the menu earns its keep. A Mac with Continuity Camera reports the built-in
 webcam and the iPhone as 1920x1080 alike, so without names you get two identical
 rows and no way to pick the one you meant."""
@@ -32,7 +32,7 @@ def test_names_are_paired_with_indices_in_order():
 
 def test_mismatched_counts_fall_back_to_resolution():
     """If cv2 and the OS disagree on how many cameras exist, which name goes with
-    which index is a guess — and a confidently wrong one sends you to the wrong
+    which index is a guess, and a confidently wrong one sends you to the wrong
     camera. Say less instead."""
     assert _label_cameras(FOUND, ["Only One Camera"]) == FOUND
 
@@ -48,7 +48,7 @@ def test_mac_camera_names_parses_system_profiler(monkeypatch):
 
 
 def test_camera_names_are_empty_off_mac(monkeypatch):
-    """No system_profiler outside macOS — and the fallback keeps the menu working.
+    """No system_profiler outside macOS, and the fallback keeps the menu working.
     Pin the platform: unpinned, this passes on Linux and shells out for real on
     the macOS CI leg."""
     monkeypatch.setattr("sys.platform", "linux")

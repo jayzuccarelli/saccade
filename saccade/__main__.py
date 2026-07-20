@@ -6,7 +6,7 @@
     GEMINI_API_KEY=... python -m saccade        # real models
 
 Settings come from the environment (see config.py). Drop them in a gitignored
-.env (copy .env.example) and `python -m saccade` just runs — no launcher script.
+.env (copy .env.example) and `python -m saccade` just runs: no launcher script.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from saccade.speakers.base import Speaker
 
 # saccade imports live inside the functions below: importing config parses env
-# vars, so `saccade devices` must not trigger it — it's the tool you reach for
+# vars, so `saccade devices` must not trigger it; it's the tool you reach for
 # when your .env is broken.
 
 
@@ -195,7 +195,7 @@ async def snapshot(path: str) -> None:
         decision = await focus.reason(percept, window, memory)
         print(f"DECISION: {decision}")
     else:
-        print("(not salient — Focus not invoked)")
+        print("(not salient, Focus not invoked)")
 
 
 async def main() -> None:
@@ -207,10 +207,10 @@ async def main() -> None:
 
     c = Config()
     if c.sensor == "stub" and c.glance_backend == "stub" and c.focus_backend == "stub":
-        # Nothing is configured at all — the first thing a fresh clone hits.
+        # Nothing is configured at all: the first thing a fresh clone hits.
         # Don't leave them watching a canned scene with no way forward.
         print(
-            "Nothing configured yet — this is a scripted demo with a stub model,\n"
+            "Nothing configured yet: this is a scripted demo with a stub model,\n"
             "not your camera. To point saccade at real hardware and a real model:\n\n"
             f"    {sys.executable} -m saccade setup\n"
         )
@@ -230,7 +230,7 @@ async def main() -> None:
     speaker = make_speaker(c)
 
     print(
-        f"saccade v0 — sensor={c.sensor} glance={c.glance_backend} "
+        f"saccade v0: sensor={c.sensor} glance={c.glance_backend} "
         f"focus={c.focus_backend} speaker={c.speaker}\n"
     )
     await looplib.run(
@@ -288,7 +288,7 @@ def _dependency_hint(exc: ModuleNotFoundError) -> str:
 
 
 def cli() -> None:
-    """Sync entry point — both `python -m saccade` and the installed `saccade`
+    """Sync entry point: both `python -m saccade` and the installed `saccade`
     script land here. Unknown input gets usage, not the infinite loop."""
     try:
         _cli()

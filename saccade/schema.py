@@ -21,14 +21,14 @@ JsonSchema = dict[str, Any]
 @dataclass
 class Frame:
     """One captured sample from a Sensor. A frame can carry an image, an audio
-    clip, or both — a webcam+mic sensor could fill both for the same instant."""
+    clip, or both: a webcam+mic sensor could fill both for the same instant."""
 
     ts: float
     image: bytes | None = None  # JPEG/PNG bytes for vision; None for audio/text/stub
     mime: str = "image/jpeg"
     audio: bytes | None = None  # WAV bytes for hearing; None for vision/text/stub
     audio_mime: str = "audio/wav"
-    # What was already read out of this sample before any model saw it — today a
+    # What was already read out of this sample before any model saw it: today a
     # local transcript of `audio`. Every backend renders it, so hearing stops
     # being a property of one vendor: transcribe on the machine and a text-only
     # model can reason about what was said.
@@ -49,7 +49,7 @@ class Window:
 
 @dataclass
 class Percept:
-    """Glance's structured observation. `escalate` is the model's OWN call —
+    """Glance's structured observation. `escalate` is the model's OWN call:
     there is no threshold or rule outside the model. `next_glance_s` is likewise
     the model's own call on how soon the next glance is worth taking (0 = no
     suggestion; the loop falls back to its fixed cadence)."""
@@ -85,7 +85,7 @@ def _loads_lenient(raw: str) -> dict[str, Any]:
     return parsed
 
 
-# Neutral JSON Schemas — provider-agnostic. Each Backend translates these into
+# Neutral JSON Schemas: provider-agnostic. Each Backend translates these into
 # its own native structured-output mechanism. Roles own their schema; backends
 # never hardcode shape. (All keys required + additionalProperties:false so
 # OpenAI strict mode accepts them.)

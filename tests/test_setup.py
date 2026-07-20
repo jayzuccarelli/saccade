@@ -1,5 +1,5 @@
 """The setup wizard turns probed devices into .env lines. Probing needs
-hardware, but the menu-building — which devices become which env vars — is the
+hardware, but the menu-building (which devices become which env vars) is the
 contract worth pinning, with the device lists faked."""
 
 import sys
@@ -30,7 +30,7 @@ OUTS = [(1, "Built-in Speakers")]
 
 # Hint shapes devices.py actually emits.
 IMPORT_HINT = "uv pip install -e '.[camera]'  # opencv-python-headless + pillow"
-PORTAUDIO_HINT = "PortAudio not found — `sudo apt install libportaudio2` (Linux)"
+PORTAUDIO_HINT = "PortAudio not found: `sudo apt install libportaudio2` (Linux)"
 DISPLAY_HINT = "screen probe failed: Cannot connect to display"
 
 
@@ -39,7 +39,7 @@ def _envs(choices):
 
 
 def test_each_camera_is_separately_pickable():
-    """Pick the built-in *or* the external cam — so each camera is its own
+    """Pick the built-in *or* the external cam, so each camera is its own
     entry carrying its own index, not one 'webcam' bucket."""
     envs = _envs(_sensor_choices((CAMS, [], [])))
     assert {"SACCADE_SENSOR": "webcam", "SACCADE_WEBCAM_INDEX": "0"} in envs
@@ -47,7 +47,7 @@ def test_each_camera_is_separately_pickable():
 
 
 def test_camera_plus_mic_offers_the_av_sensor():
-    """The av entry names no indices — which camera and which mic are asked
+    """The av entry names no indices: which camera and which mic are asked
     next. Defaulting to the first of each pairs a MacBook's webcam with the
     user's iPhone microphone, which is nobody's intent."""
     assert {"SACCADE_SENSOR": "av"} in _envs(_sensor_choices((CAMS, [], MICS)))
@@ -55,7 +55,7 @@ def test_camera_plus_mic_offers_the_av_sensor():
 
 def test_device_choices_set_only_their_own_index():
     choices = _device_choices("Mic", "SACCADE_MIC_INDEX", MICS)
-    assert choices == [("Mic 0 — Built-in Microphone", {"SACCADE_MIC_INDEX": "0"})]
+    assert choices == [("Mic 0: Built-in Microphone", {"SACCADE_MIC_INDEX": "0"})]
 
 
 def test_no_av_option_without_both_devices():
@@ -113,7 +113,7 @@ def test_install_line_matches_the_installer_this_venv_has(monkeypatch):
 
 def test_speaking_out_loud_defaults_to_local_tts():
     """Text first, then Piper, then the hosted upgrade. An ambient agent that
-    can't make a sound without a hosted API key is the wrong default — Gemini TTS
+    can't make a sound without a hosted API key is the wrong default: Gemini TTS
     should be the nicer voice you opt into, not the toll booth for any audio."""
     speakers = [e["SACCADE_SPEAKER"] for e in _envs(_speaker_choices(PIPER_READY))]
     assert speakers == ["print", "piper", "gemini_tts"]
@@ -133,7 +133,7 @@ def test_piper_state_is_shown_in_the_label():
 
 def test_speech_is_offered_without_the_audio_extra():
     """Found by review. Listing output *devices* needs sounddevice; making a noise
-    doesn't — SACCADE_PLAY_CMD hands the wav to afplay/aplay. Gating the menu on
+    doesn't; SACCADE_PLAY_CMD hands the wav to afplay/aplay. Gating the menu on
     the device list denied a fresh install the one speaker that needs no key and
     no extra, which is exactly the speaker this PR added."""
     speakers = [e["SACCADE_SPEAKER"] for e in _envs(_speaker_choices(PIPER_READY))]
@@ -142,7 +142,7 @@ def test_speech_is_offered_without_the_audio_extra():
 
 def test_each_tier_sets_only_its_own_backend():
     """The two tiers are picked separately. One question that wrote both threw away
-    the entire point of the split — you could not ask for cheap local eyes and an
+    the entire point of the split: you could not ask for cheap local eyes and an
     expensive hosted brain, which is the whole design."""
     for env in _envs(_glance_choices((True, "ready"))):
         assert list(env) == ["SACCADE_GLANCE_BACKEND"]
@@ -172,14 +172,14 @@ def test_glance_says_what_leaves_the_machine():
 
 def test_ollama_leads_only_when_it_can_answer():
     """A reachable daemon earns the default slot; an installed-but-dead one
-    doesn't — picking it is connection-refused on every tick forever."""
-    dead = _glance_choices((False, "not running — start it: ollama serve"))
+    doesn't: picking it is connection-refused on every tick forever."""
+    dead = _glance_choices((False, "not running; start it: ollama serve"))
     assert dead[0][1]["SACCADE_GLANCE_BACKEND"] != "ollama"
     assert any(e["SACCADE_GLANCE_BACKEND"] == "ollama" for e in _envs(dead))
 
 
 def test_backend_tag_is_shown_in_the_label():
-    label = _glance_choices((False, "not running — start it: ollama serve"))[-1][0]
+    label = _glance_choices((False, "not running; start it: ollama serve"))[-1][0]
     assert "ollama serve" in label
 
 
@@ -192,7 +192,7 @@ def test_no_model_option_does_not_say_stub():
 
 
 def test_backup_is_env_bak_not_env_env_bak(tmp_path: Path, monkeypatch):
-    """Regression: Path('.env').with_suffix('.env.bak') gives '.env.env.bak' —
+    """Regression: Path('.env').with_suffix('.env.bak') gives '.env.env.bak':
     a dotfile is all stem, so there's no suffix to replace."""
     path = tmp_path / ".env"
     path.write_text("SACCADE_SENSOR=stub\n")

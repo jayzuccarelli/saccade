@@ -1,7 +1,7 @@
 [project]
 name = "saccade"
 version = "0.2.0"
-description = "An open harness for proactive ambient agents — peripheral Glance, focused Focus."
+description = "An open harness for proactive ambient agents: peripheral Glance, focused Focus."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -20,7 +20,7 @@ classifiers = [
 ]
 dependencies = []  # core runs on the stdlib alone (Ollama backend included)
 
-# Lower bounds only — floors below current stable, so consumers get a working
+# Lower bounds only: floors below current stable, so consumers get a working
 # API without us dictating their upper range. uv.lock pins dev, not consumers.
 [project.optional-dependencies]
 gemini = ["google-genai>=1.21.0"]  # response_json_schema landed in 1.21.0; earlier SDKs reject it
@@ -30,6 +30,13 @@ camera = ["opencv-python-headless>=4.5.0", "pillow>=9.0.0"]
 screen = ["mss>=6.0.0", "pillow>=9.0.0"]
 audio = ["sounddevice>=0.4.5", "numpy>=1.21"]  # numpy: sounddevice's rec()/play() arrays
 stt = ["faster-whisper>=1.0"]  # local transcription; MIT, bundles ffmpeg via PyAV
+
+[tool.uv]
+# faster-whisper pulls onnxruntime, which dropped cp310 wheels at 1.24 and ships
+# no sdist, so an unconstrained resolve locks a build that cannot install on our
+# declared 3.10 floor. Constrain it rather than raise the floor: 3.10 users get
+# an onnxruntime that actually has a wheel, everyone else gets current.
+constraint-dependencies = ["onnxruntime<1.24; python_full_version < '3.11'"]
 
 [dependency-groups]
 # uv run includes this group by default, so `make check` works on a bare
@@ -57,7 +64,7 @@ strict = true
 # (cv2, sounddevice, google.genai, ...). Treat those as Any rather than vendor stubs.
 ignore_missing_imports = true
 # Local stub shadows: see stubs/numpy/__init__.pyi for why numpy needs one.
-# (per-module follow_imports can't do this job — it's ignored for stub files.)
+# (per-module follow_imports can't do this job; it's ignored for stub files.)
 mypy_path = "stubs"
 
 [tool.ruff]

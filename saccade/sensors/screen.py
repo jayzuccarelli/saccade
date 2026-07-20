@@ -6,7 +6,7 @@ Index 1 = primary monitor, 2 = second monitor, etc. (0 = all combined).
 mss is imported lazily; install with `uv pip install -e '.[screen]'`.
 
 macOS: grant Screen Recording to your terminal app (System Settings >
-Privacy & Security) — without it mss silently captures wallpaper-only frames.
+Privacy & Security); without it mss silently captures wallpaper-only frames.
 
 """
 

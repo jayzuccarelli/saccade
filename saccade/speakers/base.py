@@ -1,7 +1,7 @@
 """A Speaker turns a decision into output. Swappable, like Backend.
 
-The loop only calls `say(text)`. *How* it comes out — printed, synthesized to a
-file, played on a speaker, eventually spoken through the camera — is the
+The loop only calls `say(text)`. *How* it comes out (printed, synthesized to a
+file, played on a speaker, eventually spoken through the camera) is the
 Speaker's concern, never the loop's. Swap the output = swap the Speaker.
 """
 

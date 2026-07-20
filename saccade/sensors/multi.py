@@ -43,7 +43,7 @@ class MultiSensor:
                     await queue.put(frame)
             except asyncio.CancelledError:
                 raise
-            except Exception as e:  # noqa: BLE001 — forwarded to the consumer below
+            except Exception as e:  # noqa: BLE001 (forwarded to the consumer below)
                 await queue.put(e)
             finally:
                 await queue.put(_DONE)

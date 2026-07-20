@@ -2,7 +2,7 @@
 
 Important: this fakes the *model's* judgment, it is not system logic. The real
 model replaces it entirely. The keyword check below stands in for "the model
-decided something was worth a closer look" — in production that judgment is the
+decided something was worth a closer look"; in production that judgment is the
 model's, never a rule in our code.
 """
 

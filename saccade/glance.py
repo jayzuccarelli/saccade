@@ -1,7 +1,7 @@
-"""Glance — peripheral awareness. The cheap model's ~1Hz pass.
+"""Glance: peripheral awareness. The cheap model's ~1Hz pass.
 
 It answers one question: "is anything here worth a closer look?" Recency lives
-in the prompt as CONTEXT (recent percepts), not as an if-branch — the model
+in the prompt as CONTEXT (recent percepts), not as an if-branch; the model
 decides `escalate` itself, so it won't keep re-flagging the same ongoing thing.
 """
 
@@ -21,7 +21,7 @@ Recently you saw (newest last; a line marked [escalated] is one you ALREADY flag
 for a closer look):
 {recent}
 
-Take in the current input — an image, a short audio clip, or both — and respond \
+Take in the current input (an image, a short audio clip, or both) and respond \
 with ONLY a JSON object:
 {{
   "summary": "one short line: what you notice now",
@@ -36,11 +36,11 @@ Judge change, not the static scene: someone who has simply been sitting or stand
 there is ONE ongoing event, not a new one every second. If you already escalated an \
 ongoing situation (see the [escalated] lines above), do NOT escalate it again. \
 Escalate only when something genuinely new appears, or an ongoing thing meaningfully \
-changes — they get up, a new person enters, they start searching for something.
+changes: they get up, a new person enters, they start searching for something.
 
 Set `next_glance_s` by how much is happening: a small value (~1s) when the scene is \
 active or changing and you want to watch closely, a larger one (up to ~15s) when it is \
-calm and static and nothing needs a quick recheck. This paces your own attention — \
+calm and static and nothing needs a quick recheck. This paces your own attention: \
 watch hard when it matters, rest when it doesn't."""
 
 
@@ -50,7 +50,7 @@ class Glance:
         self.max_dim = max_dim  # peripheral vision is low-acuity: shrink to save tokens
 
     def _recent(self, memory: Memory, n: int = 8) -> str:
-        """Recent percepts, marking the ones already escalated — so 'newly worth a
+        """Recent percepts, marking the ones already escalated, so 'newly worth a
         closer look' has an anchor and an ongoing event isn't re-flagged each tick."""
         percepts = memory.working.recent(n)
         if not percepts:

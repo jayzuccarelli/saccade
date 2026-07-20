@@ -1,4 +1,4 @@
-"""Runtime config. Everything tunable lives here — no magic constants in code.
+"""Runtime config. Everything tunable lives here: no magic constants in code.
 
 Swap to the real camera/models by changing these (or env), nothing else.
 """
@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 
 def _apply_dotenv(path: str) -> dict[str, str]:
-    """Parse a KEY=VALUE file and set any key not already in the environment — the
+    """Parse a KEY=VALUE file and set any key not already in the environment: the
     real environment always wins, like every other dotenv. Returns what it parsed.
     Stdlib only; no python-dotenv dependency."""
     parsed: dict[str, str] = {}
@@ -32,7 +32,7 @@ def _apply_dotenv(path: str) -> dict[str, str]:
         if len(val) >= 2 and val[0] == val[-1] and val[0] in "\"'":
             val = val[1:-1]  # unquote
         else:
-            # python-dotenv semantics: an unquoted value ends at ` #` — otherwise
+            # python-dotenv semantics: an unquoted value ends at ` #`; otherwise
             # a trailing comment silently becomes part of the value (e.g. an RTSP
             # path that can never connect). Quote the value to keep a literal #.
             val = val.split(" #", 1)[0].rstrip()
@@ -43,7 +43,7 @@ def _apply_dotenv(path: str) -> dict[str, str]:
 
 def _autoload_dotenv() -> None:
     """Load the first .env found: $SACCADE_ENV_FILE, then ./.env, then the repo
-    root. This is what kills the launcher script — `uv run python -m saccade` just runs,
+    root. This is what kills the launcher script: `uv run python -m saccade` just runs,
     with secrets in a gitignored .env instead of a hand-run shell file."""
     candidates = []
     if explicit := os.environ.get("SACCADE_ENV_FILE"):
@@ -70,7 +70,7 @@ class Config:
     mic_index: int = int(os.environ.get("SACCADE_MIC_INDEX", "-1"))
     screen_index: int = int(os.environ.get("SACCADE_SCREEN_INDEX", "1"))
     rtsp_url: str = os.environ.get("SACCADE_RTSP_URL", "")
-    # Or give the parts and let saccade assemble + URL-encode the URL — so a
+    # Or give the parts and let saccade assemble + URL-encode the URL, so a
     # password with @ : / # symbols can't break it and creds stay out of shell
     # history. Used only when SACCADE_RTSP_URL is empty (see __post_init__).
     rtsp_user: str = os.environ.get("SACCADE_RTSP_USER", "admin")
@@ -87,7 +87,7 @@ class Config:
     # always gets full resolution (it reasons carefully and runs rarely). 0 = off.
     glance_max_dim: int = int(os.environ.get("SACCADE_GLANCE_MAX_DIM", "768"))
     # Adaptive cadence: let Glance decide how soon to look again (per its
-    # next_glance_s). It only ever slows below glance_fps, never faster — quiet
+    # next_glance_s). It only ever slows below glance_fps, never faster: quiet
     # scene = rest (up to glance_max_interval s), action = every tick. 0 to disable.
     adaptive_cadence: bool = os.environ.get("SACCADE_ADAPTIVE_CADENCE", "1").lower() not in (
         "0",
@@ -98,7 +98,7 @@ class Config:
     glance_max_interval: float = float(os.environ.get("SACCADE_GLANCE_MAX_INTERVAL", "15.0"))
 
     # Concurrent Focus: a salient frame spawns Focus in the background so Glance
-    # keeps watching while the big model reasons (single-slot — one at a time). 0
+    # keeps watching while the big model reasons (single-slot, one at a time). 0
     # to reason inline (Glance pauses until Focus + the action finish).
     concurrent_focus: bool = os.environ.get("SACCADE_CONCURRENT_FOCUS", "1").lower() not in (
         "0",
@@ -125,7 +125,7 @@ class Config:
     preferences_path: str = os.environ.get("SACCADE_PREFS", "preferences.md")
     # How far back Focus treats its own past utterances as "recent" (the anti-nag
     # window). Older lines drop out, so a fresh run isn't muted by what it said in
-    # a prior session — episodic is on disk and persists across runs. Seconds.
+    # a prior session; episodic is on disk and persists across runs. Seconds.
     recent_said_window_s: float = float(os.environ.get("SACCADE_RECENT_SAID_WINDOW", "180"))
 
     # Local speech-to-text: "" (off, raw audio goes to the backend) or "whisper"
@@ -152,7 +152,7 @@ class Config:
     audio_out_index: int = int(os.environ.get("SACCADE_AUDIO_OUT_INDEX", "-1"))
 
     # home_assistant speaker: play the clip on a media_player. saccade serves the
-    # audio itself, so HA just fetches serve_host:serve_port — no HA www needed.
+    # audio itself, so HA just fetches serve_host:serve_port (no HA www needed).
     ha_url: str = os.environ.get("SACCADE_HA_URL", "http://localhost:8123")
     ha_token: str = os.environ.get("SACCADE_HA_TOKEN", "")
     ha_entity: str = os.environ.get("SACCADE_HA_ENTITY", "")
