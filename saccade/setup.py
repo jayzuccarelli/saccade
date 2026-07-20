@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from urllib import request
@@ -42,7 +43,9 @@ def _ask(question: str, choices: list[Choice]) -> dict[str, str]:
         print("  (pick one of the numbers above)")
 
 
-def _sensor_choices(devs: Devices) -> list[Choice]:
+def _one_sensor_choices(devs: Devices) -> list[Choice]:
+    """Every individual device, one entry each. The building block for both the
+    single pick and the several-at-once pick."""
     cams, screens, mics = devs
     out: list[Choice] = []
     for i, desc in cams:
@@ -55,13 +58,70 @@ def _sensor_choices(devs: Devices) -> list[Choice]:
         )
     for i, name in mics:
         out.append((f"Mic {i} — {name}", {"SACCADE_SENSOR": "mic", "SACCADE_MIC_INDEX": str(i)}))
+    return out
+
+
+def _sensor_kinds(env: dict[str, str]) -> set[str]:
+    """The sensor kinds this env selects. A single name, or several after a
+    "several at once" pick — every downstream question (does it hear? does macOS
+    need a camera prompt?) has to look at all of them, not just the string."""
+    return {k.strip() for k in env.get("SACCADE_SENSOR", "").split(",") if k.strip()}
+
+
+def _merge_sensors(picked: list[Choice]) -> tuple[dict[str, str], list[str]]:
+    """Fold several single-device picks into one env block, e.g. screen + mic ->
+    SACCADE_SENSOR=screen,mic plus each index var.
+
+    Two of the same kind can't both be expressed: there's one
+    SACCADE_WEBCAM_INDEX, so a second camera would silently overwrite the first.
+    Rather than quietly watching a camera they didn't choose, the extras come
+    back as `dropped` for the caller to say out loud."""
+    env: dict[str, str] = {}
+    kinds: list[str] = []
+    dropped: list[str] = []
+    for label, choice in picked:
+        kind = choice["SACCADE_SENSOR"]
+        if kind in kinds:
+            dropped.append(label)
+            continue
+        kinds.append(kind)
+        env.update({k: v for k, v in choice.items() if k != "SACCADE_SENSOR"})
+    env["SACCADE_SENSOR"] = ",".join(kinds)
+    return env, dropped
+
+
+def _sensor_choices(devs: Devices) -> list[Choice]:
+    cams, screens, mics = devs
+    out: list[Choice] = _one_sensor_choices(devs)
+    singles = len(out)
     if cams and mics:
         # Which camera and which mic is a follow-up question — pairing the first
         # of each looks reasonable until you meet a Mac whose first mic is the
         # user's iPhone and whose first camera is the built-in webcam.
         out.append(("A camera and a mic together — see and hear at once", {"SACCADE_SENSOR": "av"}))
+    if singles >= 2:
+        # Distinct from `av`: that fuses one camera grab and one mic clip into a
+        # single Frame describing one instant. This just runs several inputs at
+        # their own pace and interleaves them — watch the screen, hear the room.
+        out.append(("Several at once — pick which on the next screen", {"SACCADE_SENSOR": "multi"}))
     out.append(("Nothing — scripted demo, no hardware", {"SACCADE_SENSOR": "stub"}))
     return out
+
+
+def _ask_many(question: str, choices: list[Choice]) -> list[Choice]:
+    """Like _ask, but takes several: comma-separated numbers. Order is preserved
+    and repeats collapse, so "3,1,3" means the third and the first."""
+    print(f"\n{question}")
+    for n, (label, _) in enumerate(choices, start=1):
+        print(f"  [{n}] {label}")
+    while True:
+        raw = input(f"  > [comma-separated, 1-{len(choices)}, e.g. 1,3] ").strip()
+        if not raw:
+            return [choices[0]]
+        picks = [p.strip() for p in raw.split(",") if p.strip()]
+        if picks and all(p.isdigit() and 1 <= int(p) <= len(choices) for p in picks):
+            return [choices[i] for i in dict.fromkeys(int(p) - 1 for p in picks)]
+        print("  (numbers from the list, separated by commas)")
 
 
 def _device_choices(kind: str, var: str, items: list[tuple[int, str]]) -> list[Choice]:
@@ -86,61 +146,151 @@ def _ollama_state() -> tuple[bool, str]:
     return True, f"ready, {len(models)} model(s) pulled"
 
 
-def _backend_choices(ollama: tuple[bool, str], hears_audio: bool = False) -> list[Choice]:
-    """Local-first: Ollama leads when it can actually answer, since it's free and
-    the frames never leave the machine. Gemini leads when the sensor captures
-    audio, since it's the only backend that forwards it — the others would take
-    the mic pick and silently drop the audio half."""
-    usable, tag = ollama
-    out: list[Choice] = [
-        (
-            f"Ollama — local, free, private ({tag})",
-            {"SACCADE_GLANCE_BACKEND": "ollama", "SACCADE_FOCUS_BACKEND": "ollama"},
-        ),
-        (
-            "Gemini — hosted, needs an API key (the only backend that hears audio)",
-            {"SACCADE_GLANCE_BACKEND": "gemini", "SACCADE_FOCUS_BACKEND": "gemini"},
-        ),
-        (
-            "OpenAI — hosted, needs an API key",
-            {"SACCADE_GLANCE_BACKEND": "openai", "SACCADE_FOCUS_BACKEND": "openai"},
-        ),
-        (
-            "Anthropic — hosted, needs an API key",
-            {"SACCADE_GLANCE_BACKEND": "anthropic", "SACCADE_FOCUS_BACKEND": "anthropic"},
-        ),
-        (
-            "Stub — no model, scripted output",
-            {"SACCADE_GLANCE_BACKEND": "stub", "SACCADE_FOCUS_BACKEND": "stub"},
-        ),
-    ]
-    if not usable:
-        out.append(out.pop(0))  # don't lead with something they can't run
-    if hears_audio:
-        gemini = next(
-            n for n, (_, env) in enumerate(out) if env["SACCADE_GLANCE_BACKEND"] == "gemini"
-        )
-        out.insert(0, out.pop(gemini))
+GLANCE_VAR = "SACCADE_GLANCE_BACKEND"
+FOCUS_VAR = "SACCADE_FOCUS_BACKEND"
+
+_NO_MODEL = "No model — scripted demo output, nothing is called"
+
+
+def _ordered(order: list[str], first: str = "", last: str = "") -> list[str]:
+    """Same options every time, reordered so the sensible pick is [1]."""
+    out = list(order)
+    if last:
+        out.append(out.pop(out.index(last)))
+    if first:
+        out.insert(0, out.pop(out.index(first)))
     return out
+
+
+STT_VAR = "SACCADE_STT"
+
+
+def _stt_state() -> tuple[bool, str]:
+    """Whether local transcription can run here."""
+    if _importable("faster_whisper"):
+        return True, "ready"
+    return False, "needs the stt extra"
+
+
+def _stt_choices(stt: tuple[bool, str]) -> list[Choice]:
+    """Where the audio gets understood. Leading with local isn't a preference —
+    it's the only option where the microphone in your room doesn't become an
+    upload, and it's also the one that frees you from the single backend that
+    accepts audio at all."""
+    ready, tag = stt
+    return [
+        (
+            f"Transcribe on this machine — the audio never leaves, any model can read it ({tag})",
+            {STT_VAR: "whisper"},
+        ),
+        ("Send the recording to the model — only Gemini accepts audio", {STT_VAR: ""}),
+    ]
+
+
+def _glance_choices(ollama: tuple[bool, str], hears_audio: bool = False) -> list[Choice]:
+    """Glance is the tier that runs about once a second and looks at *every* frame,
+    so this pick decides whether a camera pointed at your kitchen streams to a
+    vendor all day. Local leads whenever it can actually run.
+
+    Gemini takes the lead instead when the sensor captures audio, because it's the
+    only backend that forwards it — anything else accepts the mic pick and then
+    silently drops the audio half."""
+    usable, tag = ollama
+    labels = {
+        "ollama": f"Ollama — runs on this machine, frames never leave it ({tag})",
+        "gemini": "Gemini — hosted; every frame it looks at is uploaded (only one that hears audio)",
+        "openai": "OpenAI — hosted; every frame it looks at is uploaded",
+        "anthropic": "Anthropic — hosted; every frame it looks at is uploaded",
+        "stub": _NO_MODEL,
+    }
+    order = _ordered(
+        ["ollama", "gemini", "openai", "anthropic", "stub"],
+        first="gemini" if hears_audio else "",
+        last="" if usable else "ollama",  # don't lead with something they can't run
+    )
+    return [(labels[k], {GLANCE_VAR: k}) for k in order]
+
+
+def _focus_choices(ollama: tuple[bool, str]) -> list[Choice]:
+    """Focus only runs when Glance escalates, which is rare by design. That's why
+    the expensive, capable model belongs here and not on the 1 Hz tier: you pay
+    for it a few times a day, and the only thing it ever sees is a moment that
+    already cleared the bar."""
+    usable, tag = ollama
+    sees = "hosted; sees only the moments Glance escalates"
+    labels = {
+        "gemini": f"Gemini — {sees}",
+        "anthropic": f"Anthropic — {sees}",
+        "openai": f"OpenAI — {sees}",
+        "ollama": f"Ollama — runs on this machine, nothing leaves it ({tag})",
+        "stub": _NO_MODEL,
+    }
+    order = _ordered(
+        ["gemini", "anthropic", "openai", "ollama", "stub"], last="" if usable else "ollama"
+    )
+    return [(labels[k], {FOCUS_VAR: k}) for k in order]
 
 
 KEY_VARS = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
 
+_OUT_VAR = "SACCADE_AUDIO_OUT_INDEX"
 
-def _speaker_choices(outs: list[tuple[int, str]]) -> list[Choice]:
+
+def _importable(module: str) -> bool:
+    """Whether *this* interpreter can import `module`, asked in a subprocess so
+    we never load it into our own process (piper is GPL; we run it, not link it)."""
+    probe = subprocess.run([sys.executable, "-c", f"import {module}"], capture_output=True)
+    return probe.returncode == 0
+
+
+def _piper_state() -> tuple[bool, str]:
+    """Whether Piper can speak, and what to say about it."""
+    return (True, "local, free, no key") if _importable("piper") else (False, "not installed")
+
+
+def _piper_setup_commands() -> str:
+    """The two commands to get Piper working, aimed at *this* interpreter.
+
+    Every shortcut here has already bitten someone on a Mac. A bare `python`
+    isn't on PATH at all, so `python -m piper.download_voices` picks Homebrew's
+    3.14 and reports 'No module named piper' while piper sits happily in .venv.
+    And `python -m pip install` fails in a uv-made venv, which ships without pip
+    — a different confusing error for the same user. So: name the interpreter,
+    and ask which installer this environment actually has."""
+    exe = sys.executable
+    if _importable("pip"):
+        install = f"{exe} -m pip install piper-tts"
+    elif shutil.which("uv"):
+        install = "uv pip install piper-tts"
+    else:
+        install = f"{exe} -m ensurepip --upgrade && {exe} -m pip install piper-tts"
+    return f"    {install}\n    {exe} -m piper.download_voices en_US-lessac-medium\n"
+
+
+def _speaker_choices(piper: tuple[bool, str]) -> list[Choice]:
+    """Text, then the two ways to make sound. Which output device is a follow-up
+    question, so adding a second engine doesn't multiply the menu by every
+    speaker on the machine.
+
+    Speaking is offered whether or not any output *devices* were enumerated.
+    Listing them needs the audio extra (sounddevice); actually making a noise
+    doesn't — SACCADE_PLAY_CMD hands the wav to afplay/aplay and the OS picks the
+    default device. Gating on the device list denied a fresh install the one
+    speaker that needs no key and no extra at all."""
     out: list[Choice] = [("Text in the terminal", {"SACCADE_SPEAKER": "print"})]
     play = "afplay" if sys.platform == "darwin" else "aplay"
-    for i, name in outs:
-        out.append(
-            (
-                f"Speak out loud via {name} (Gemini TTS, needs GEMINI_API_KEY)",
-                {
-                    "SACCADE_SPEAKER": "gemini_tts",
-                    "SACCADE_AUDIO_OUT_INDEX": str(i),
-                    "SACCADE_PLAY_CMD": play,
-                },
-            )
+    out.append(
+        (
+            f"Speak out loud — Piper ({piper[1]})",
+            {"SACCADE_SPEAKER": "piper", "SACCADE_PLAY_CMD": play},
         )
+    )
+    out.append(
+        (
+            "Speak out loud — Gemini TTS (better voice, needs GEMINI_API_KEY)",
+            {"SACCADE_SPEAKER": "gemini_tts", "SACCADE_PLAY_CMD": play},
+        )
+    )
     return out
 
 
@@ -171,8 +321,11 @@ def _needed_keys(env: dict[str, str]) -> list[str]:
     separate asks: thinking with OpenAI while speaking with Gemini TTS needs both,
     and prompting for only the backend's key wrote an .env whose speaker failed on
     the first spoken word."""
-    backend = env.get("SACCADE_GLANCE_BACKEND", "stub")
-    needed = [KEY_VARS[backend]] if backend in KEY_VARS else []
+    needed: list[str] = []
+    for var in (GLANCE_VAR, FOCUS_VAR):
+        key = KEY_VARS.get(env.get(var, "stub"))
+        if key and key not in needed:
+            needed.append(key)
     if env.get("SACCADE_SPEAKER") == "gemini_tts" and KEY_VARS["gemini"] not in needed:
         needed.append(KEY_VARS["gemini"])
     return needed
@@ -227,15 +380,50 @@ def main() -> None:
     ollama = _ollama_state()
     env: dict[str, str] = {}
     env.update(_ask("What should saccade watch or hear?", _sensor_choices(devs)))
+    if env.get("SACCADE_SENSOR") == "multi":
+        picked = _ask_many("Which ones?", _one_sensor_choices(devs))
+        merged, dropped = _merge_sensors(picked)
+        for label in dropped:
+            print(f"  note: skipped {label} — only one of each kind for now")
+        env.update(merged)
     if env.get("SACCADE_SENSOR") == "av":
         env.update(_ask("Which camera?", _device_choices("Camera", "SACCADE_WEBCAM_INDEX", cams)))
         env.update(_ask("Which mic?", _device_choices("Mic", "SACCADE_MIC_INDEX", mics)))
-    hears_audio = env.get("SACCADE_SENSOR") in ("mic", "av")
-    env.update(_ask("Which model should think?", _backend_choices(ollama, hears_audio)))
-    env.update(_ask("How should saccade answer?", _speaker_choices(outs)))
+    # Two tiers, two questions. One question set both, which quietly threw away
+    # the whole point of the split: cheap eyes that run constantly, an expensive
+    # brain that runs almost never.
+    stt = _stt_state()
+    if {"mic", "av"} & _sensor_kinds(env):
+        env.update(_ask("What should happen to what it hears?", _stt_choices(stt)))
+    # Only *raw* audio pins you to Gemini. Once it's transcribed here, the model
+    # is reading text and every backend is back on the table.
+    hears_audio = bool({"mic", "av"} & _sensor_kinds(env)) and env.get(STT_VAR) != "whisper"
+    env.update(
+        _ask(
+            "What keeps watching?  (runs ~1x/sec, looks at every frame)",
+            _glance_choices(ollama, hears_audio),
+        )
+    )
+    env.update(
+        _ask(
+            "What thinks when something happens?  (runs only when the watcher escalates)",
+            _focus_choices(ollama),
+        )
+    )
+    piper = _piper_state()
+    env.update(_ask("How should saccade answer?", _speaker_choices(piper)))
+    if env.get("SACCADE_SPEAKER") in ("piper", "gemini_tts") and outs:
+        env.update(_ask("Out of which speaker?", _device_choices("Output", _OUT_VAR, outs)))
 
-    if env.get("SACCADE_GLANCE_BACKEND") == "ollama" and not ollama[0]:
+    if "ollama" in (env.get(GLANCE_VAR), env.get(FOCUS_VAR)) and not ollama[0]:
         print(f"\n  Heads up: Ollama is {ollama[1]}\n  saccade will keep retrying until it's up.")
+    if env.get(STT_VAR) == "whisper" and not stt[0]:
+        print(
+            "\n  Local transcription isn't installed yet:\n\n"
+            "    uv pip install -e '.[stt]'\n"
+        )
+    if env.get("SACCADE_SPEAKER") == "piper" and not piper[0]:
+        print(f"\n  Piper isn't installed yet. Two commands and it can talk:\n\n{_piper_setup_commands()}")
 
     for var in _needed_keys(env):
         key = input(f"\n{var} (blank to set it later): ").strip()
@@ -245,6 +433,9 @@ def main() -> None:
     if not _write_env(Path(".env"), env):
         return
 
-    print("\nWrote .env. Start it with:\n\n    python -m saccade\n")
-    if env.get("SACCADE_SENSOR") in ("webcam", "av") and sys.platform == "darwin":
+    # sys.executable, not a bare `python`: the shell that just ran setup may have
+    # no `python` on it at all (macOS), and the one it does have is often not the
+    # venv holding saccade's deps.
+    print(f"\nWrote .env. Start it with:\n\n    {sys.executable} -m saccade\n")
+    if {"webcam", "av"} & _sensor_kinds(env) and sys.platform == "darwin":
         print("macOS: approve the Camera prompt on first run, then rerun.\n")

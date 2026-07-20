@@ -12,7 +12,7 @@ import base64
 import os
 from typing import Any
 
-from saccade.schema import Frame, JsonSchema
+from saccade.schema import Frame, JsonSchema, heard_text
 
 
 class OpenAIBackend:
@@ -33,7 +33,7 @@ class OpenAIBackend:
         self, prompt: str, frames: list[Frame], schema: JsonSchema | None = None
     ) -> str:
         client = self._client_lazy()
-        content: list[Any] = [{"type": "text", "text": prompt}]
+        content: list[Any] = [{"type": "text", "text": prompt + heard_text(frames)}]
         for f in frames:
             if f.image:
                 b64 = base64.b64encode(f.image).decode()

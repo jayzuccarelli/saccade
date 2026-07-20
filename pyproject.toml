@@ -29,6 +29,7 @@ anthropic = ["anthropic>=0.30.0"]
 camera = ["opencv-python-headless>=4.5.0", "pillow>=9.0.0"]
 screen = ["mss>=6.0.0", "pillow>=9.0.0"]
 audio = ["sounddevice>=0.4.5", "numpy>=1.21"]  # numpy: sounddevice's rec()/play() arrays
+stt = ["faster-whisper>=1.0"]  # local transcription; MIT, bundles ffmpeg via PyAV
 
 [dependency-groups]
 # uv run includes this group by default, so `make check` works on a bare
@@ -55,6 +56,9 @@ strict = true
 # Optional backends/sensors import third-party libs with no type stubs
 # (cv2, sounddevice, google.genai, ...). Treat those as Any rather than vendor stubs.
 ignore_missing_imports = true
+# Local stub shadows: see stubs/numpy/__init__.pyi for why numpy needs one.
+# (per-module follow_imports can't do this job — it's ignored for stub files.)
+mypy_path = "stubs"
 
 [tool.ruff]
 line-length = 100

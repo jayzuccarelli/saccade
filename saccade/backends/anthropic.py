@@ -17,7 +17,7 @@ import json
 import os
 from typing import Any
 
-from saccade.schema import Frame, JsonSchema
+from saccade.schema import Frame, JsonSchema, heard_text
 
 
 class AnthropicBackend:
@@ -39,7 +39,7 @@ class AnthropicBackend:
         self, prompt: str, frames: list[Frame], schema: JsonSchema | None = None
     ) -> str:
         client = self._client_lazy()
-        blocks: list[Any] = [{"type": "text", "text": prompt}]
+        blocks: list[Any] = [{"type": "text", "text": prompt + heard_text(frames)}]
         for f in frames:
             if f.image:
                 b64 = base64.b64encode(f.image).decode()

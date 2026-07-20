@@ -2,15 +2,23 @@
 hardware, but the menu-building — which devices become which env vars — is the
 contract worth pinning, with the device lists faked."""
 
+import sys
 from pathlib import Path
 
+from saccade import setup as setuplib
 from saccade.setup import (
-    _backend_choices,
+    GLANCE_VAR,
     _device_choices,
+    _focus_choices,
+    _glance_choices,
+    _merge_sensors,
     _missing_extras,
     _needed_keys,
     _notes,
+    _one_sensor_choices,
+    _piper_setup_commands,
     _sensor_choices,
+    _sensor_kinds,
     _speaker_choices,
     _write_env,
 )
@@ -78,34 +86,109 @@ def test_found_devices_are_never_reported_missing():
     assert _missing_extras((CAMS, [], []), (IMPORT_HINT, "", "")) == []
 
 
-def test_speaker_offers_text_first_then_each_output():
-    choices = _speaker_choices(OUTS)
-    assert choices[0][1] == {"SACCADE_SPEAKER": "print"}
-    assert _envs(choices)[1]["SACCADE_AUDIO_OUT_INDEX"] == "1"
+PIPER_READY = (True, "local, free, no key")
+PIPER_MISSING = (False, "not installed")
 
 
-def test_speaker_is_text_only_with_no_outputs():
-    assert _envs(_speaker_choices([])) == [{"SACCADE_SPEAKER": "print"}]
+def test_piper_setup_commands_name_this_interpreter():
+    """Regression, hit on a real Mac: the docs said `python -m piper.download_voices`.
+    There is no `python` on PATH on macOS, so that ran Homebrew's 3.14 and reported
+    'No module named piper' while piper sat happily in .venv."""
+    cmds = _piper_setup_commands()
+    assert f"{sys.executable} -m piper.download_voices" in cmds
+    assert "\n    python -m" not in cmds
 
 
-def test_every_backend_choice_sets_both_tiers():
-    for env in _envs(_backend_choices((True, "ready"))):
-        assert env["SACCADE_GLANCE_BACKEND"] == env["SACCADE_FOCUS_BACKEND"]
+def test_install_line_matches_the_installer_this_venv_has(monkeypatch):
+    """Second half of the same regression: a uv-made venv ships *without* pip, so
+    telling that user `python -m pip install` swaps one confusing error for
+    another. Ask what's here before giving an instruction."""
+    monkeypatch.setattr(setuplib, "_importable", lambda mod: mod != "pip")
+    monkeypatch.setattr(setuplib.shutil, "which", lambda name: "/usr/bin/uv")
+    assert "uv pip install piper-tts" in _piper_setup_commands()
+
+    monkeypatch.setattr(setuplib, "_importable", lambda mod: True)
+    assert f"{sys.executable} -m pip install piper-tts" in _piper_setup_commands()
+
+
+def test_speaking_out_loud_defaults_to_local_tts():
+    """Text first, then Piper, then the hosted upgrade. An ambient agent that
+    can't make a sound without a hosted API key is the wrong default — Gemini TTS
+    should be the nicer voice you opt into, not the toll booth for any audio."""
+    speakers = [e["SACCADE_SPEAKER"] for e in _envs(_speaker_choices(PIPER_READY))]
+    assert speakers == ["print", "piper", "gemini_tts"]
+
+
+def test_no_speaker_choice_names_a_device():
+    """Which output is asked separately, so a second engine doesn't multiply the
+    menu by every speaker on the machine."""
+    for env in _envs(_speaker_choices(PIPER_READY)):
+        assert "SACCADE_AUDIO_OUT_INDEX" not in env
+
+
+def test_piper_state_is_shown_in_the_label():
+    label = _speaker_choices(PIPER_MISSING)[1][0]
+    assert "not installed" in label
+
+
+def test_speech_is_offered_without_the_audio_extra():
+    """Found by review. Listing output *devices* needs sounddevice; making a noise
+    doesn't — SACCADE_PLAY_CMD hands the wav to afplay/aplay. Gating the menu on
+    the device list denied a fresh install the one speaker that needs no key and
+    no extra, which is exactly the speaker this PR added."""
+    speakers = [e["SACCADE_SPEAKER"] for e in _envs(_speaker_choices(PIPER_READY))]
+    assert speakers == ["print", "piper", "gemini_tts"]
+
+
+def test_each_tier_sets_only_its_own_backend():
+    """The two tiers are picked separately. One question that wrote both threw away
+    the entire point of the split — you could not ask for cheap local eyes and an
+    expensive hosted brain, which is the whole design."""
+    for env in _envs(_glance_choices((True, "ready"))):
+        assert list(env) == ["SACCADE_GLANCE_BACKEND"]
+    for env in _envs(_focus_choices((True, "ready"))):
+        assert list(env) == ["SACCADE_FOCUS_BACKEND"]
+
+
+def test_the_recommended_pair_is_local_eyes_hosted_brain():
+    """Accepting both defaults should land on the architecture: a cheap model
+    watching continuously on this machine, a capable hosted one that only ever
+    sees what already escalated."""
+    assert _glance_choices((True, "ready"))[0][1]["SACCADE_GLANCE_BACKEND"] == "ollama"
+    assert _focus_choices((True, "ready"))[0][1]["SACCADE_FOCUS_BACKEND"] == "gemini"
+
+
+def test_glance_says_what_leaves_the_machine():
+    """The privacy claim has to be legible at the point of choosing, since Glance
+    is the tier that sees every frame all day."""
+    labels = dict(
+        (label, env["SACCADE_GLANCE_BACKEND"]) for label, env in _glance_choices((True, "ready"))
+    )
+    local = next(lbl for lbl, k in labels.items() if k == "ollama")
+    hosted = next(lbl for lbl, k in labels.items() if k == "gemini")
+    assert "never leave" in local
+    assert "uploaded" in hosted
 
 
 def test_ollama_leads_only_when_it_can_answer():
     """A reachable daemon earns the default slot; an installed-but-dead one
     doesn't — picking it is connection-refused on every tick forever."""
-    ready = _backend_choices((True, "ready"))
-    assert ready[0][1]["SACCADE_GLANCE_BACKEND"] == "ollama"
-    dead = _backend_choices((False, "not running — start it: ollama serve"))
+    dead = _glance_choices((False, "not running — start it: ollama serve"))
     assert dead[0][1]["SACCADE_GLANCE_BACKEND"] != "ollama"
     assert any(e["SACCADE_GLANCE_BACKEND"] == "ollama" for e in _envs(dead))
 
 
 def test_backend_tag_is_shown_in_the_label():
-    label = _backend_choices((False, "not running — start it: ollama serve"))[-1][0]
+    label = _glance_choices((False, "not running — start it: ollama serve"))[-1][0]
     assert "ollama serve" in label
+
+
+def test_no_model_option_does_not_say_stub():
+    """ "Stub" is a test fixture's name. It meant nothing to the person reading the
+    menu, who reasonably asked what it was."""
+    labels = [label for label, env in _glance_choices((True, "ready"))]
+    assert not any(lbl.lower().startswith("stub") for lbl in labels)
+    assert any("scripted demo" in lbl for lbl in labels)
 
 
 def test_backup_is_env_bak_not_env_env_bak(tmp_path: Path, monkeypatch):
@@ -145,18 +228,18 @@ def test_display_failure_is_still_a_note():
 def test_audio_sensor_leads_with_the_backend_that_hears():
     """Gemini is the only backend that forwards Frame.audio, so accepting the
     default with a mic selected must not hand you one that drops it."""
-    heard = _backend_choices((True, "ready"), hears_audio=True)
+    heard = _glance_choices((True, "ready"), hears_audio=True)
     assert heard[0][1]["SACCADE_GLANCE_BACKEND"] == "gemini"
 
 
 def test_video_only_still_leads_with_ollama():
-    seen = _backend_choices((True, "ready"), hears_audio=False)
+    seen = _glance_choices((True, "ready"), hears_audio=False)
     assert seen[0][1]["SACCADE_GLANCE_BACKEND"] == "ollama"
 
 
 def test_promoting_gemini_keeps_every_backend_on_the_menu():
-    heard = _backend_choices((True, "ready"), hears_audio=True)
-    assert len(heard) == len(_backend_choices((True, "ready")))
+    heard = _glance_choices((True, "ready"), hears_audio=True)
+    assert len(heard) == len(_glance_choices((True, "ready")))
     assert len(_envs(heard)) == len({e["SACCADE_GLANCE_BACKEND"] for e in _envs(heard)})
 
 
@@ -165,6 +248,13 @@ def test_hosted_backend_plus_gemini_tts_asks_for_both_keys():
     for the backend's wrote an .env whose speaker died on the first word."""
     env = {"SACCADE_GLANCE_BACKEND": "openai", "SACCADE_SPEAKER": "gemini_tts"}
     assert _needed_keys(env) == ["OPENAI_API_KEY", "GEMINI_API_KEY"]
+
+
+def test_speaking_locally_needs_no_key_at_all():
+    """The whole point of the local speaker: a machine with no accounts on it can
+    still talk. Ollama thinks, Piper speaks, nothing is asked for and nothing
+    leaves the box."""
+    assert _needed_keys({"SACCADE_GLANCE_BACKEND": "ollama", "SACCADE_SPEAKER": "piper"}) == []
 
 
 def test_gemini_backend_and_gemini_tts_ask_once():
@@ -179,3 +269,34 @@ def test_local_backend_printing_text_needs_no_key():
 def test_local_backend_speaking_still_needs_the_tts_key():
     env = {"SACCADE_GLANCE_BACKEND": "ollama", "SACCADE_SPEAKER": "gemini_tts"}
     assert _needed_keys(env) == ["GEMINI_API_KEY"]
+
+
+def test_several_at_once_is_offered_once_there_are_two_inputs():
+    assert any(e.get("SACCADE_SENSOR") == "multi" for e in _envs(_sensor_choices((CAMS, SCREENS, MICS))))
+
+
+def test_no_several_option_with_a_single_input():
+    assert not any(e.get("SACCADE_SENSOR") == "multi" for e in _envs(_sensor_choices(([], SCREENS, []))))
+
+
+def test_merging_keeps_each_kind_and_its_index():
+    """screen + mic becomes one SACCADE_SENSOR plus both index vars."""
+    picks = [c for c in _one_sensor_choices(([], SCREENS, MICS))]
+    env, dropped = _merge_sensors(picks)
+    assert env["SACCADE_SENSOR"] == "screen,mic"
+    assert env["SACCADE_SCREEN_INDEX"] == "1" and env["SACCADE_MIC_INDEX"] == "0"
+    assert dropped == []
+
+
+def test_two_of_one_kind_are_reported_not_silently_dropped():
+    """There's one SACCADE_WEBCAM_INDEX, so a second camera would overwrite the
+    first. Watching a camera you didn't pick, with no message, is the bad outcome."""
+    env, dropped = _merge_sensors(_one_sensor_choices((CAMS, [], [])))
+    assert env["SACCADE_SENSOR"] == "webcam"
+    assert env["SACCADE_WEBCAM_INDEX"] == "0"  # the first pick wins
+    assert len(dropped) == 1 and "Camera 1" in dropped[0]
+
+
+def test_a_multi_pick_that_includes_a_mic_still_leads_with_the_hearing_backend():
+    assert _sensor_kinds({"SACCADE_SENSOR": "screen,mic"}) == {"screen", "mic"}
+    assert _glance_choices((True, "ready"), hears_audio=True)[0][1][GLANCE_VAR] == "gemini"
