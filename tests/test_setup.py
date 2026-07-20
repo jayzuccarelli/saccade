@@ -2,14 +2,17 @@
 hardware, but the menu-building — which devices become which env vars — is the
 contract worth pinning, with the device lists faked."""
 
+import sys
 from pathlib import Path
 
+from saccade import setup as setuplib
 from saccade.setup import (
     _backend_choices,
     _device_choices,
     _missing_extras,
     _needed_keys,
     _notes,
+    _piper_setup_commands,
     _sensor_choices,
     _speaker_choices,
     _write_env,
@@ -79,7 +82,28 @@ def test_found_devices_are_never_reported_missing():
 
 
 PIPER_READY = (True, "local, free, no key")
-PIPER_MISSING = (False, "not installed — pip install piper-tts")
+PIPER_MISSING = (False, "not installed")
+
+
+def test_piper_setup_commands_name_this_interpreter():
+    """Regression, hit on a real Mac: the docs said `python -m piper.download_voices`.
+    There is no `python` on PATH on macOS, so that ran Homebrew's 3.14 and reported
+    'No module named piper' while piper sat happily in .venv."""
+    cmds = _piper_setup_commands()
+    assert f"{sys.executable} -m piper.download_voices" in cmds
+    assert "\n    python -m" not in cmds
+
+
+def test_install_line_matches_the_installer_this_venv_has(monkeypatch):
+    """Second half of the same regression: a uv-made venv ships *without* pip, so
+    telling that user `python -m pip install` swaps one confusing error for
+    another. Ask what's here before giving an instruction."""
+    monkeypatch.setattr(setuplib, "_importable", lambda mod: mod != "pip")
+    monkeypatch.setattr(setuplib.shutil, "which", lambda name: "/usr/bin/uv")
+    assert "uv pip install piper-tts" in _piper_setup_commands()
+
+    monkeypatch.setattr(setuplib, "_importable", lambda mod: True)
+    assert f"{sys.executable} -m pip install piper-tts" in _piper_setup_commands()
 
 
 def test_speaking_out_loud_defaults_to_local_tts():
@@ -99,7 +123,7 @@ def test_no_speaker_choice_names_a_device():
 
 def test_piper_state_is_shown_in_the_label():
     label = _speaker_choices(OUTS, PIPER_MISSING)[1][0]
-    assert "pip install piper-tts" in label
+    assert "not installed" in label
 
 
 def test_speaker_is_text_only_with_no_outputs():

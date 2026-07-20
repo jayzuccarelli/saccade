@@ -130,16 +130,35 @@ KEY_VARS = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY", "anthropic":
 _OUT_VAR = "SACCADE_AUDIO_OUT_INDEX"
 
 
+def _importable(module: str) -> bool:
+    """Whether *this* interpreter can import `module`, asked in a subprocess so
+    we never load it into our own process (piper is GPL; we run it, not link it)."""
+    probe = subprocess.run([sys.executable, "-c", f"import {module}"], capture_output=True)
+    return probe.returncode == 0
+
+
 def _piper_state() -> tuple[bool, str]:
-    """Whether Piper can speak, and what to say about it. Probed in a subprocess
-    rather than by importing it — saccade is MIT and piper-tts is GPL, so we run
-    it, we don't link it."""
-    probe = subprocess.run(
-        [sys.executable, "-c", "import piper"], capture_output=True, timeout=30
-    )
-    if probe.returncode != 0:
-        return False, "not installed — pip install piper-tts"
-    return True, "local, free, no key"
+    """Whether Piper can speak, and what to say about it."""
+    return (True, "local, free, no key") if _importable("piper") else (False, "not installed")
+
+
+def _piper_setup_commands() -> str:
+    """The two commands to get Piper working, aimed at *this* interpreter.
+
+    Every shortcut here has already bitten someone on a Mac. A bare `python`
+    isn't on PATH at all, so `python -m piper.download_voices` picks Homebrew's
+    3.14 and reports 'No module named piper' while piper sits happily in .venv.
+    And `python -m pip install` fails in a uv-made venv, which ships without pip
+    — a different confusing error for the same user. So: name the interpreter,
+    and ask which installer this environment actually has."""
+    exe = sys.executable
+    if _importable("pip"):
+        install = f"{exe} -m pip install piper-tts"
+    elif shutil.which("uv"):
+        install = "uv pip install piper-tts"
+    else:
+        install = f"{exe} -m ensurepip --upgrade && {exe} -m pip install piper-tts"
+    return f"    {install}\n    {exe} -m piper.download_voices en_US-lessac-medium\n"
 
 
 def _speaker_choices(outs: list[tuple[int, str]], piper: tuple[bool, str]) -> list[Choice]:
@@ -261,11 +280,7 @@ def main() -> None:
     if env.get("SACCADE_GLANCE_BACKEND") == "ollama" and not ollama[0]:
         print(f"\n  Heads up: Ollama is {ollama[1]}\n  saccade will keep retrying until it's up.")
     if env.get("SACCADE_SPEAKER") == "piper" and not piper[0]:
-        print(
-            "\n  Piper isn't installed yet. Two commands and it can talk:\n\n"
-            "    pip install piper-tts\n"
-            "    python -m piper.download_voices en_US-lessac-medium\n"
-        )
+        print(f"\n  Piper isn't installed yet. Two commands and it can talk:\n\n{_piper_setup_commands()}")
 
     for var in _needed_keys(env):
         key = input(f"\n{var} (blank to set it later): ").strip()

@@ -262,10 +262,15 @@ and Windows. Install it yourself — it's GPL and saccade is MIT, so saccade run
 it as a subprocess rather than depending on it:
 
 ```bash
-pip install piper-tts
-python -m piper.download_voices en_US-lessac-medium
-SACCADE_SPEAKER=piper python -m saccade
+uv pip install piper-tts
+uv run python -m piper.download_voices en_US-lessac-medium
+SACCADE_SPEAKER=piper uv run python -m saccade
 ```
+
+Use `uv run` (or activate the venv first). A bare `python` isn't on PATH at all
+on macOS, and a bare `pip` installs somewhere the running saccade can't import
+from, which gets you piper installed and `No module named piper` in the same
+terminal.
 
 `SACCADE_PIPER_VOICE` picks the voice (`python -m piper.download_voices` with no
 argument lists them). Voices download to the working directory; if you run

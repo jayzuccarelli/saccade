@@ -72,12 +72,20 @@ class PiperSpeaker:
         """Turn Piper's failure into the command that fixes it. The two that
         actually happen are 'never installed it' and 'never downloaded a voice',
         and both are one command away from working."""
+        # Name the interpreter, not a bare `pip`/`python`. A Mac has no `python`
+        # on PATH, and installing with the wrong pip lands piper somewhere the
+        # running saccade can't import from — which is how you get piper
+        # installed and "No module named piper" in the same terminal. Both
+        # installers are offered because a uv-made venv ships without pip.
         if "No module named" in stderr:
-            return "Piper isn't installed — pip install piper-tts"
+            return (
+                f"Piper isn't installed in {sys.executable} — "
+                f"`uv pip install piper-tts`, or `pip install piper-tts` in an activated venv"
+            )
         if self.voice in stderr or "voice" in stderr.lower():
             return (
                 f"Piper has no voice {self.voice!r} — download it: "
-                f"python -m piper.download_voices {self.voice}"
+                f"{sys.executable} -m piper.download_voices {self.voice}"
             )
         return f"Piper failed: {stderr.strip().splitlines()[-1] if stderr.strip() else 'no output'}"
 
