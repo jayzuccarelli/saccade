@@ -55,3 +55,22 @@ def test_rtsp_url_assembled_from_parts_with_encoding():
 def test_explicit_rtsp_url_is_not_overridden():
     c = Config(rtsp_url="rtsp://given/stream", rtsp_host="10.0.0.9", rtsp_password="x")
     assert c.rtsp_url == "rtsp://given/stream"  # an explicit URL wins over the parts
+
+
+def test_missing_optional_dep_names_the_extra():
+    """A `webcam` sensor with no cv2 installed is an ordinary thing to do. It used
+    to answer with a twenty-line asyncio traceback ending in ModuleNotFoundError,
+    which reads like you broke something rather than like you haven't installed
+    the extra yet."""
+    from saccade.__main__ import _dependency_hint
+
+    hint = _dependency_hint(ModuleNotFoundError("No module named 'cv2'", name="cv2"))
+    assert "uv pip install -e '.[camera]'" in hint
+
+
+def test_unrelated_import_errors_are_not_swallowed():
+    """Only our own optional deps get the friendly treatment. A genuine broken
+    import must keep its traceback instead of being dressed up as a missing extra."""
+    from saccade.__main__ import _dependency_hint
+
+    assert _dependency_hint(ModuleNotFoundError("nope", name="some_internal_module")) == ""

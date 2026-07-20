@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from saccade.schema import Frame, JsonSchema
+from saccade.schema import Frame, JsonSchema, heard_text
 
 
 class GeminiBackend:
@@ -35,7 +35,7 @@ class GeminiBackend:
         from google.genai import types
 
         client = self._client_lazy()
-        contents: list[Any] = [prompt]
+        contents: list[Any] = [prompt + heard_text(frames)]
         for f in frames:
             if f.image:
                 contents.append(types.Part.from_bytes(data=f.image, mime_type=f.mime))

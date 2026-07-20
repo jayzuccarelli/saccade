@@ -22,7 +22,7 @@ import os
 from typing import Any
 from urllib import error, request
 
-from saccade.schema import Frame, JsonSchema
+from saccade.schema import Frame, JsonSchema, heard_text
 
 _DEFAULT_HOST = "http://localhost:11434"
 
@@ -47,7 +47,7 @@ class OllamaBackend:
     async def complete(
         self, prompt: str, frames: list[Frame], schema: JsonSchema | None = None
     ) -> str:
-        message: dict[str, Any] = {"role": "user", "content": prompt}
+        message: dict[str, Any] = {"role": "user", "content": prompt + heard_text(frames)}
         images = [base64.b64encode(f.image).decode() for f in frames if f.image]
         if images:
             message["images"] = images

@@ -30,11 +30,13 @@ class AVSensor:
         mic_index: int | None = None,
         fps: float = 1.0,
         sample_rate: int = SAMPLE_RATE,
+        transcriber: Any | None = None,
     ):
         self.webcam_index = webcam_index
         self.mic_index = mic_index
         self.seconds = 1.0 / fps  # audio clip length = one glance interval
         self.sample_rate = sample_rate
+        self.transcriber = transcriber  # anything with `async transcribe(wav) -> str`
 
     def _grab_jpeg(self, cap: Any) -> bytes | None:
         import cv2
@@ -66,12 +68,23 @@ class AVSensor:
                 pcm = await asyncio.to_thread(
                     record_pcm, self.seconds, self.sample_rate, self.mic_index
                 )
-                yield Frame(
-                    ts=time.time(),
-                    image=image,
-                    mime="image/jpeg",
-                    audio=wav_bytes(pcm, self.sample_rate),
-                    audio_mime="audio/wav",
-                )
+                wav = wav_bytes(pcm, self.sample_rate)
+                if self.transcriber is None:
+                    yield Frame(
+                        ts=time.time(),
+                        image=image,
+                        mime="image/jpeg",
+                        audio=wav,
+                        audio_mime="audio/wav",
+                    )
+                else:
+                    # Transcribed here, so the audio stays here — the picture still
+                    # goes to whichever backend, but the room is never uploaded.
+                    yield Frame(
+                        ts=time.time(),
+                        image=image,
+                        mime="image/jpeg",
+                        text=await self.transcriber.transcribe(wav),
+                    )
         finally:
             cap.release()

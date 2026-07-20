@@ -1,26 +1,22 @@
 """Synthesize speech with Gemini TTS and write it to a wav.
 
-The box saccade watches from may have no audio out, so by default we just write
-the clip and print where it landed. Two ways to actually play it:
+The hosted upgrade over the default Piper speaker: better voices, at the cost of
+an API key and a network round trip per utterance. Worth it when you care how it
+sounds; overkill for "someone's at the door".
 
-  - `play_cmd` (SACCADE_PLAY_CMD): a command taking the file path — `aplay`,
-    `afplay`, or a wrapper that pushes it to a speaker / the camera. Uses the OS
-    default output device.
-  - `out_index` (SACCADE_AUDIO_OUT_INDEX): play to a specific device by index
-    (the numbers `saccade devices` lists) via sounddevice — the symmetric twin
-    of picking a mic. Wins over play_cmd when set.
-
-The SDK/sounddevice imports are lazy so the harness has no hard dependency on
-google-genai or PortAudio.
+Playback (device or command) is shared with the other speakers — see
+`_playback.py`. The SDK import is lazy so the harness has no hard dependency on
+google-genai.
 """
 
 from __future__ import annotations
 
-import asyncio
 import time
 import wave
 from pathlib import Path
 from typing import Any
+
+from saccade.speakers._playback import play
 
 # Gemini TTS returns 16-bit signed PCM, mono, 24 kHz (mime audio/L16;rate=24000).
 _RATE = 24000
@@ -81,25 +77,7 @@ class GeminiTTSSpeaker:
             w.writeframes(pcm)
         return path
 
-    def _play_to_device(self, path: Path) -> None:
-        """Blocking playback of a wav to a specific output device — run off-thread."""
-        import numpy as np
-        import sounddevice as sd
-
-        with wave.open(str(path), "rb") as w:
-            rate, channels = w.getframerate(), w.getnchannels()
-            pcm = w.readframes(w.getnframes())
-        data = np.frombuffer(pcm, dtype=np.int16)
-        if channels > 1:
-            data = data.reshape(-1, channels)
-        sd.play(data, samplerate=rate, device=self.out_index)
-        sd.wait()
-
     async def say(self, text: str) -> None:
         path = await self.synthesize(text)
         print(f"\n    \033[1m\033[96m💬  {text}\033[0m   🔊 {path}\n")
-        if self.out_index is not None and self.out_index >= 0:
-            await asyncio.to_thread(self._play_to_device, path)  # pick the speaker
-        elif self.play_cmd:
-            proc = await asyncio.create_subprocess_exec(*self.play_cmd.split(), str(path))
-            await proc.wait()
+        await play(path, self.play_cmd, self.out_index)

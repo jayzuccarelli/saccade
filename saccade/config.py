@@ -43,7 +43,7 @@ def _apply_dotenv(path: str) -> dict[str, str]:
 
 def _autoload_dotenv() -> None:
     """Load the first .env found: $SACCADE_ENV_FILE, then ./.env, then the repo
-    root. This is what kills the launcher script — `python -m saccade` just runs,
+    root. This is what kills the launcher script — `uv run python -m saccade` just runs,
     with secrets in a gitignored .env instead of a hand-run shell file."""
     candidates = []
     if explicit := os.environ.get("SACCADE_ENV_FILE"):
@@ -128,9 +128,19 @@ class Config:
     # a prior session — episodic is on disk and persists across runs. Seconds.
     recent_said_window_s: float = float(os.environ.get("SACCADE_RECENT_SAID_WINDOW", "180"))
 
-    # Speaker (output): "print" (default), "gemini_tts" (synthesize to wav), or
-    # "home_assistant" (synthesize + play on a media_player via HA).
+    # Local speech-to-text: "" (off, raw audio goes to the backend) or "whisper"
+    # (transcribe on this machine; the audio is then NOT sent anywhere). Needs the
+    # stt extra. Any backend can read the transcript, local ones included.
+    stt: str = os.environ.get("SACCADE_STT", "")
+    stt_model: str = os.environ.get("SACCADE_STT_MODEL", "base")
+
+    # Speaker (output): "print" (default), "piper" (local TTS, no key), "gemini_tts"
+    # (hosted TTS, better voices), or "home_assistant" (play on a media_player via HA).
     speaker: str = os.environ.get("SACCADE_SPEAKER", "print")
+    # piper speaker: which downloaded voice to use, and where voices live (blank =
+    # piper's own default dir). `uv run python -m piper.download_voices` lists them.
+    piper_voice: str = os.environ.get("SACCADE_PIPER_VOICE", "en_US-lessac-medium")
+    piper_data_dir: str = os.environ.get("SACCADE_PIPER_DATA_DIR", "")
     tts_model: str = os.environ.get("SACCADE_TTS_MODEL", "gemini-2.5-flash-preview-tts")
     tts_voice: str = os.environ.get("SACCADE_TTS_VOICE", "Kore")
     tts_dir: str = os.environ.get("SACCADE_TTS_DIR", "utterances")
