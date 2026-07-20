@@ -187,12 +187,12 @@ async def main() -> None:
         print(
             "Nothing configured yet — this is a scripted demo with a stub model,\n"
             "not your camera. To point saccade at real hardware and a real model:\n\n"
-            "    python -m saccade setup\n"
+            f"    {sys.executable} -m saccade setup\n"
         )
     elif c.sensor == "stub":
         print(
             "note: SACCADE_SENSOR is unset, so the stub sensor is feeding the real "
-            "model no images.\nPoint it at something: `python -m saccade setup`, or set "
+            f"model no images.\nPoint it at something: `{sys.executable} -m saccade setup`, or set "
             "SACCADE_SENSOR=webcam / screen / reolink.\n"
         )
     sensor = make_sensor(c)
@@ -230,9 +230,52 @@ USAGE = """usage: saccade [command]
   snapshot <file>   run one image or audio clip through Glance (then Focus if salient)"""
 
 
+# Which extra ships each lazily-imported dependency. Sensors and speakers import
+# these inside the function that needs them, so a missing one surfaces at the
+# first frame rather than at startup.
+EXTRA_FOR_MODULE = {
+    "cv2": "camera",
+    "mss": "screen",
+    "PIL": "camera",
+    "sounddevice": "audio",
+    "numpy": "audio",
+    "google": "gemini",
+    "openai": "openai",
+    "anthropic": "anthropic",
+}
+
+
+def _dependency_hint(exc: ModuleNotFoundError) -> str:
+    """Turn a missing optional dep into the line that fixes it, or "" if it isn't
+    one of ours. `SACCADE_SENSOR=webcam` with no cv2 installed is a completely
+    ordinary thing to do, and answering it with a twenty-line asyncio traceback
+    tells the user they broke something when they just haven't installed the
+    extra yet."""
+    extra = EXTRA_FOR_MODULE.get((exc.name or "").split(".")[0])
+    if not extra:
+        return ""
+    return (
+        f"saccade needs the '{extra}' extra for this configuration "
+        f"(no module named {exc.name!r}).\n\n"
+        f"    uv pip install -e '.[{extra}]'\n\n"
+        f"Then rerun. `{sys.executable} -m saccade devices` shows what's available."
+    )
+
+
 def cli() -> None:
     """Sync entry point — both `python -m saccade` and the installed `saccade`
     script land here. Unknown input gets usage, not the infinite loop."""
+    try:
+        _cli()
+    except ModuleNotFoundError as e:
+        hint = _dependency_hint(e)
+        if not hint:
+            raise
+        print(f"\n{hint}\n", file=sys.stderr)
+        raise SystemExit(1) from None
+
+
+def _cli() -> None:
     argv = sys.argv[1:]
     if not argv:
         asyncio.run(main())

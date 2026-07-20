@@ -87,42 +87,64 @@ def _ollama_state() -> tuple[bool, str]:
     return True, f"ready, {len(models)} model(s) pulled"
 
 
-def _backend_choices(ollama: tuple[bool, str], hears_audio: bool = False) -> list[Choice]:
-    """Local-first: Ollama leads when it can actually answer, since it's free and
-    the frames never leave the machine. Gemini leads when the sensor captures
-    audio, since it's the only backend that forwards it — the others would take
-    the mic pick and silently drop the audio half."""
-    usable, tag = ollama
-    out: list[Choice] = [
-        (
-            f"Ollama — local, free, private ({tag})",
-            {"SACCADE_GLANCE_BACKEND": "ollama", "SACCADE_FOCUS_BACKEND": "ollama"},
-        ),
-        (
-            "Gemini — hosted, needs an API key (the only backend that hears audio)",
-            {"SACCADE_GLANCE_BACKEND": "gemini", "SACCADE_FOCUS_BACKEND": "gemini"},
-        ),
-        (
-            "OpenAI — hosted, needs an API key",
-            {"SACCADE_GLANCE_BACKEND": "openai", "SACCADE_FOCUS_BACKEND": "openai"},
-        ),
-        (
-            "Anthropic — hosted, needs an API key",
-            {"SACCADE_GLANCE_BACKEND": "anthropic", "SACCADE_FOCUS_BACKEND": "anthropic"},
-        ),
-        (
-            "Stub — no model, scripted output",
-            {"SACCADE_GLANCE_BACKEND": "stub", "SACCADE_FOCUS_BACKEND": "stub"},
-        ),
-    ]
-    if not usable:
-        out.append(out.pop(0))  # don't lead with something they can't run
-    if hears_audio:
-        gemini = next(
-            n for n, (_, env) in enumerate(out) if env["SACCADE_GLANCE_BACKEND"] == "gemini"
-        )
-        out.insert(0, out.pop(gemini))
+GLANCE_VAR = "SACCADE_GLANCE_BACKEND"
+FOCUS_VAR = "SACCADE_FOCUS_BACKEND"
+
+_NO_MODEL = "No model — scripted demo output, nothing is called"
+
+
+def _ordered(order: list[str], first: str = "", last: str = "") -> list[str]:
+    """Same options every time, reordered so the sensible pick is [1]."""
+    out = list(order)
+    if last:
+        out.append(out.pop(out.index(last)))
+    if first:
+        out.insert(0, out.pop(out.index(first)))
     return out
+
+
+def _glance_choices(ollama: tuple[bool, str], hears_audio: bool = False) -> list[Choice]:
+    """Glance is the tier that runs about once a second and looks at *every* frame,
+    so this pick decides whether a camera pointed at your kitchen streams to a
+    vendor all day. Local leads whenever it can actually run.
+
+    Gemini takes the lead instead when the sensor captures audio, because it's the
+    only backend that forwards it — anything else accepts the mic pick and then
+    silently drops the audio half."""
+    usable, tag = ollama
+    labels = {
+        "ollama": f"Ollama — runs on this machine, frames never leave it ({tag})",
+        "gemini": "Gemini — hosted; every frame it looks at is uploaded (only one that hears audio)",
+        "openai": "OpenAI — hosted; every frame it looks at is uploaded",
+        "anthropic": "Anthropic — hosted; every frame it looks at is uploaded",
+        "stub": _NO_MODEL,
+    }
+    order = _ordered(
+        ["ollama", "gemini", "openai", "anthropic", "stub"],
+        first="gemini" if hears_audio else "",
+        last="" if usable else "ollama",  # don't lead with something they can't run
+    )
+    return [(labels[k], {GLANCE_VAR: k}) for k in order]
+
+
+def _focus_choices(ollama: tuple[bool, str]) -> list[Choice]:
+    """Focus only runs when Glance escalates, which is rare by design. That's why
+    the expensive, capable model belongs here and not on the 1 Hz tier: you pay
+    for it a few times a day, and the only thing it ever sees is a moment that
+    already cleared the bar."""
+    usable, tag = ollama
+    sees = "hosted; sees only the moments Glance escalates"
+    labels = {
+        "gemini": f"Gemini — {sees}",
+        "anthropic": f"Anthropic — {sees}",
+        "openai": f"OpenAI — {sees}",
+        "ollama": f"Ollama — runs on this machine, nothing leaves it ({tag})",
+        "stub": _NO_MODEL,
+    }
+    order = _ordered(
+        ["gemini", "anthropic", "openai", "ollama", "stub"], last="" if usable else "ollama"
+    )
+    return [(labels[k], {FOCUS_VAR: k}) for k in order]
 
 
 KEY_VARS = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
@@ -211,8 +233,11 @@ def _needed_keys(env: dict[str, str]) -> list[str]:
     separate asks: thinking with OpenAI while speaking with Gemini TTS needs both,
     and prompting for only the backend's key wrote an .env whose speaker failed on
     the first spoken word."""
-    backend = env.get("SACCADE_GLANCE_BACKEND", "stub")
-    needed = [KEY_VARS[backend]] if backend in KEY_VARS else []
+    needed: list[str] = []
+    for var in (GLANCE_VAR, FOCUS_VAR):
+        key = KEY_VARS.get(env.get(var, "stub"))
+        if key and key not in needed:
+            needed.append(key)
     if env.get("SACCADE_SPEAKER") == "gemini_tts" and KEY_VARS["gemini"] not in needed:
         needed.append(KEY_VARS["gemini"])
     return needed
@@ -270,14 +295,28 @@ def main() -> None:
     if env.get("SACCADE_SENSOR") == "av":
         env.update(_ask("Which camera?", _device_choices("Camera", "SACCADE_WEBCAM_INDEX", cams)))
         env.update(_ask("Which mic?", _device_choices("Mic", "SACCADE_MIC_INDEX", mics)))
+    # Two tiers, two questions. One question set both, which quietly threw away
+    # the whole point of the split: cheap eyes that run constantly, an expensive
+    # brain that runs almost never.
     hears_audio = env.get("SACCADE_SENSOR") in ("mic", "av")
-    env.update(_ask("Which model should think?", _backend_choices(ollama, hears_audio)))
+    env.update(
+        _ask(
+            "What keeps watching?  (runs ~1x/sec, looks at every frame)",
+            _glance_choices(ollama, hears_audio),
+        )
+    )
+    env.update(
+        _ask(
+            "What thinks when something happens?  (runs only when the watcher escalates)",
+            _focus_choices(ollama),
+        )
+    )
     piper = _piper_state()
     env.update(_ask("How should saccade answer?", _speaker_choices(outs, piper)))
     if env.get("SACCADE_SPEAKER") in ("piper", "gemini_tts") and outs:
         env.update(_ask("Out of which speaker?", _device_choices("Output", _OUT_VAR, outs)))
 
-    if env.get("SACCADE_GLANCE_BACKEND") == "ollama" and not ollama[0]:
+    if "ollama" in (env.get(GLANCE_VAR), env.get(FOCUS_VAR)) and not ollama[0]:
         print(f"\n  Heads up: Ollama is {ollama[1]}\n  saccade will keep retrying until it's up.")
     if env.get("SACCADE_SPEAKER") == "piper" and not piper[0]:
         print(f"\n  Piper isn't installed yet. Two commands and it can talk:\n\n{_piper_setup_commands()}")
@@ -290,6 +329,9 @@ def main() -> None:
     if not _write_env(Path(".env"), env):
         return
 
-    print("\nWrote .env. Start it with:\n\n    python -m saccade\n")
+    # sys.executable, not a bare `python`: the shell that just ran setup may have
+    # no `python` on it at all (macOS), and the one it does have is often not the
+    # venv holding saccade's deps.
+    print(f"\nWrote .env. Start it with:\n\n    {sys.executable} -m saccade\n")
     if env.get("SACCADE_SENSOR") in ("webcam", "av") and sys.platform == "darwin":
         print("macOS: approve the Camera prompt on first run, then rerun.\n")

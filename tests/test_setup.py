@@ -7,8 +7,9 @@ from pathlib import Path
 
 from saccade import setup as setuplib
 from saccade.setup import (
-    _backend_choices,
     _device_choices,
+    _focus_choices,
+    _glance_choices,
     _missing_extras,
     _needed_keys,
     _notes,
@@ -130,24 +131,55 @@ def test_speaker_is_text_only_with_no_outputs():
     assert _envs(_speaker_choices([], PIPER_READY)) == [{"SACCADE_SPEAKER": "print"}]
 
 
-def test_every_backend_choice_sets_both_tiers():
-    for env in _envs(_backend_choices((True, "ready"))):
-        assert env["SACCADE_GLANCE_BACKEND"] == env["SACCADE_FOCUS_BACKEND"]
+def test_each_tier_sets_only_its_own_backend():
+    """The two tiers are picked separately. One question that wrote both threw away
+    the entire point of the split — you could not ask for cheap local eyes and an
+    expensive hosted brain, which is the whole design."""
+    for env in _envs(_glance_choices((True, "ready"))):
+        assert list(env) == ["SACCADE_GLANCE_BACKEND"]
+    for env in _envs(_focus_choices((True, "ready"))):
+        assert list(env) == ["SACCADE_FOCUS_BACKEND"]
+
+
+def test_the_recommended_pair_is_local_eyes_hosted_brain():
+    """Accepting both defaults should land on the architecture: a cheap model
+    watching continuously on this machine, a capable hosted one that only ever
+    sees what already escalated."""
+    assert _glance_choices((True, "ready"))[0][1]["SACCADE_GLANCE_BACKEND"] == "ollama"
+    assert _focus_choices((True, "ready"))[0][1]["SACCADE_FOCUS_BACKEND"] == "gemini"
+
+
+def test_glance_says_what_leaves_the_machine():
+    """The privacy claim has to be legible at the point of choosing, since Glance
+    is the tier that sees every frame all day."""
+    labels = dict(
+        (label, env["SACCADE_GLANCE_BACKEND"]) for label, env in _glance_choices((True, "ready"))
+    )
+    local = next(lbl for lbl, k in labels.items() if k == "ollama")
+    hosted = next(lbl for lbl, k in labels.items() if k == "gemini")
+    assert "never leave" in local
+    assert "uploaded" in hosted
 
 
 def test_ollama_leads_only_when_it_can_answer():
     """A reachable daemon earns the default slot; an installed-but-dead one
     doesn't — picking it is connection-refused on every tick forever."""
-    ready = _backend_choices((True, "ready"))
-    assert ready[0][1]["SACCADE_GLANCE_BACKEND"] == "ollama"
-    dead = _backend_choices((False, "not running — start it: ollama serve"))
+    dead = _glance_choices((False, "not running — start it: ollama serve"))
     assert dead[0][1]["SACCADE_GLANCE_BACKEND"] != "ollama"
     assert any(e["SACCADE_GLANCE_BACKEND"] == "ollama" for e in _envs(dead))
 
 
 def test_backend_tag_is_shown_in_the_label():
-    label = _backend_choices((False, "not running — start it: ollama serve"))[-1][0]
+    label = _glance_choices((False, "not running — start it: ollama serve"))[-1][0]
     assert "ollama serve" in label
+
+
+def test_no_model_option_does_not_say_stub():
+    """ "Stub" is a test fixture's name. It meant nothing to the person reading the
+    menu, who reasonably asked what it was."""
+    labels = [label for label, env in _glance_choices((True, "ready"))]
+    assert not any(lbl.lower().startswith("stub") for lbl in labels)
+    assert any("scripted demo" in lbl for lbl in labels)
 
 
 def test_backup_is_env_bak_not_env_env_bak(tmp_path: Path, monkeypatch):
@@ -187,18 +219,18 @@ def test_display_failure_is_still_a_note():
 def test_audio_sensor_leads_with_the_backend_that_hears():
     """Gemini is the only backend that forwards Frame.audio, so accepting the
     default with a mic selected must not hand you one that drops it."""
-    heard = _backend_choices((True, "ready"), hears_audio=True)
+    heard = _glance_choices((True, "ready"), hears_audio=True)
     assert heard[0][1]["SACCADE_GLANCE_BACKEND"] == "gemini"
 
 
 def test_video_only_still_leads_with_ollama():
-    seen = _backend_choices((True, "ready"), hears_audio=False)
+    seen = _glance_choices((True, "ready"), hears_audio=False)
     assert seen[0][1]["SACCADE_GLANCE_BACKEND"] == "ollama"
 
 
 def test_promoting_gemini_keeps_every_backend_on_the_menu():
-    heard = _backend_choices((True, "ready"), hears_audio=True)
-    assert len(heard) == len(_backend_choices((True, "ready")))
+    heard = _glance_choices((True, "ready"), hears_audio=True)
+    assert len(heard) == len(_glance_choices((True, "ready")))
     assert len(_envs(heard)) == len({e["SACCADE_GLANCE_BACKEND"] for e in _envs(heard)})
 
 
