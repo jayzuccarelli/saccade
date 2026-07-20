@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- The `home_assistant` speaker now synthesizes with Piper by default instead of
+  Gemini TTS, so playing on a media_player no longer forces an API key. Set
+  `SACCADE_HA_TTS=gemini_tts` to keep the hosted voices. **Behavior change:** an
+  existing HA setup that relied on Gemini needs that variable, or Piper installed.
+- CI resolves `uv.lock` against every extra on each matrix Python. `make check`
+  goes through `uv run`, which re-resolves and ignores the lock, so nothing was
+  checking that the committed lock could actually be installed.
+
 ## 0.2.0
 
 Audio, and an attention loop that paces itself.

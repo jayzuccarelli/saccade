@@ -140,10 +140,19 @@ def make_speaker(c: Config) -> Speaker:
             c.tts_model, c.tts_voice, c.tts_dir, c.play_cmd, out_index=c.audio_out_index
         )
     if c.speaker == "home_assistant":
-        from saccade.speakers.gemini_tts import GeminiTTSSpeaker
         from saccade.speakers.home_assistant import HomeAssistantSpeaker
 
-        tts = GeminiTTSSpeaker(c.tts_model, c.tts_voice, c.tts_dir)
+        # Built without play_cmd/out_index on purpose: the clip is played on the
+        # media_player, so synthesizing here must not also play it on this box.
+        tts: Any
+        if c.ha_tts == "gemini_tts":
+            from saccade.speakers.gemini_tts import GeminiTTSSpeaker
+
+            tts = GeminiTTSSpeaker(c.tts_model, c.tts_voice, c.tts_dir)
+        else:
+            from saccade.speakers.piper import PiperSpeaker
+
+            tts = PiperSpeaker(c.piper_voice, c.tts_dir, data_dir=c.piper_data_dir)
         return HomeAssistantSpeaker(
             tts, c.ha_url, c.ha_token, c.ha_entity, c.serve_host, c.serve_port
         )
