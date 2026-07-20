@@ -36,10 +36,23 @@ def _to_device(path: Path, out_index: int) -> None:
     sd.wait()
 
 
+# A player that never exits (wedged audio daemon, a device that vanished mid-clip)
+# would otherwise hang here forever, and the loop awaits the speaker — so one stuck
+# `afplay` stops the agent watching the room, permanently and silently. Utterances
+# are a few seconds; a minute means something is wrong, not slow.
+PLAY_TIMEOUT_S = 60.0
+
+
 async def play(path: Path, play_cmd: str, out_index: int) -> None:
     """Play `path`, if this box has any way to. Silent no-op when it doesn't."""
     if out_index >= 0:
         await asyncio.to_thread(_to_device, path, out_index)
     elif play_cmd:
         proc = await asyncio.create_subprocess_exec(*play_cmd.split(), str(path))
-        await proc.wait()
+        try:
+            await asyncio.wait_for(proc.wait(), PLAY_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            # Losing one utterance beats losing the agent: kill it and keep going.
+            proc.kill()
+            await proc.wait()
+            print(f"warning: {play_cmd.split()[0]} hung on {path.name} — killed it")

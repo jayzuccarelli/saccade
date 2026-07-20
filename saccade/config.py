@@ -43,7 +43,7 @@ def _apply_dotenv(path: str) -> dict[str, str]:
 
 def _autoload_dotenv() -> None:
     """Load the first .env found: $SACCADE_ENV_FILE, then ./.env, then the repo
-    root. This is what kills the launcher script — `python -m saccade` just runs,
+    root. This is what kills the launcher script — `uv run python -m saccade` just runs,
     with secrets in a gitignored .env instead of a hand-run shell file."""
     candidates = []
     if explicit := os.environ.get("SACCADE_ENV_FILE"):
@@ -138,7 +138,7 @@ class Config:
     # (hosted TTS, better voices), or "home_assistant" (play on a media_player via HA).
     speaker: str = os.environ.get("SACCADE_SPEAKER", "print")
     # piper speaker: which downloaded voice to use, and where voices live (blank =
-    # piper's own default dir). `python -m piper.download_voices` lists them.
+    # piper's own default dir). `uv run python -m piper.download_voices` lists them.
     piper_voice: str = os.environ.get("SACCADE_PIPER_VOICE", "en_US-lessac-medium")
     piper_data_dir: str = os.environ.get("SACCADE_PIPER_DATA_DIR", "")
     tts_model: str = os.environ.get("SACCADE_TTS_MODEL", "gemini-2.5-flash-preview-tts")

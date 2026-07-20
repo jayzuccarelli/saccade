@@ -59,7 +59,7 @@ per new piece. The rules below keep the design intact.
 
 **Before claiming done.**
 1. `python -m pytest -q` — all green.
-2. `python -m saccade` with no env — the scripted stub run still works end-to-end.
+2. `uv run python -m saccade` with no env — the scripted stub run still works end-to-end.
 3. If you touched a real path (camera, model, speaker), actually run it. Tests
    verify code; running verifies the feature.
 
@@ -91,7 +91,7 @@ source .venv/bin/activate && pip install -e '.[camera,screen,audio]'` does the s
 **Pick your devices.**
 
 ```bash
-python -m saccade setup
+uv run python -m saccade setup
 ```
 
 Probes this machine and asks three questions: what to watch or hear (your
@@ -100,14 +100,14 @@ which model thinks, and whether it answers as text or out loud. Writes a `.env`
 you can edit by hand afterwards. Then start it:
 
 ```bash
-python -m saccade
+uv run python -m saccade
 ```
 
 **Or skip setup entirely.** No key, no camera — runs a scripted scene on the
 stdlib alone, so you can see the loop before wiring anything up:
 
 ```bash
-python -m saccade
+uv run python -m saccade
 ```
 
 You'll see Glance/Percept/Focus output in the terminal. That's the whole loop,
@@ -115,7 +115,7 @@ just with a stub model and a scripted sensor.
 
 The sections below swap in real models — pair them with a real sensor
 (`SACCADE_SENSOR=webcam` / `screen` / `reolink`, further down) or sanity-check
-one image with `python -m saccade snapshot pic.jpg`. With no sensor set, the
+one image with `uv run python -m saccade snapshot pic.jpg`. With no sensor set, the
 scripted stub feeds a real model no images (saccade warns if you try).
 
 **Go local, private, free with Ollama** (recommended for the always-on Glance
@@ -126,7 +126,7 @@ curl -fsSL https://ollama.com/install.sh | sh
 ollama pull gemma3:4b
 ollama pull gemma3:12b
 
-SACCADE_GLANCE_BACKEND=ollama SACCADE_FOCUS_BACKEND=ollama python -m saccade
+SACCADE_GLANCE_BACKEND=ollama SACCADE_FOCUS_BACKEND=ollama uv run python -m saccade
 ```
 
 `gemma3:4b` (~3GB, multimodal) is the Glance default; `gemma3:12b` is smarter and
@@ -140,12 +140,12 @@ Any Ollama vision model works — swap with `SACCADE_GLANCE_MODEL=qwen2.5vl:7b` 
 # Gemini (default: Glance=3.1 Flash-Lite, Focus=3.5 Flash)
 uv pip install google-genai
 SACCADE_GLANCE_BACKEND=gemini SACCADE_FOCUS_BACKEND=gemini \
-  GEMINI_API_KEY=your_key python -m saccade
+  GEMINI_API_KEY=your_key uv run python -m saccade
 
 # Or OpenAI, or Claude — same harness (validated path is Gemini + Ollama;
 # OpenAI/Anthropic backends follow each provider's spec but aren't live-tested):
 SACCADE_GLANCE_BACKEND=openai SACCADE_FOCUS_BACKEND=anthropic \
-  OPENAI_API_KEY=... ANTHROPIC_API_KEY=... python -m saccade
+  OPENAI_API_KEY=... ANTHROPIC_API_KEY=... uv run python -m saccade
 ```
 
 Structured output is enforced provider-agnostically: each role declares a JSON
@@ -157,21 +157,21 @@ common combo (private always-on, paid SOTA only when something escalates).
 **Point it at one image** (fastest way to sanity-check a key):
 
 ```bash
-python -m saccade snapshot photo.jpg
+uv run python -m saccade snapshot photo.jpg
 ```
 
 **See what's plugged into this machine.** Enumerates cameras, screens, mics,
 and audio outputs — the `.env lines:` under each section paste verbatim into `.env`:
 
 ```bash
-python -m saccade devices
+uv run python -m saccade devices
 ```
 
 **Point it at your laptop webcam** (Mac / Linux / Windows — cv2 picks the OS backend):
 
 ```bash
 uv pip install -e '.[camera]'
-SACCADE_SENSOR=webcam python -m saccade
+SACCADE_SENSOR=webcam uv run python -m saccade
 ```
 
 Set `SACCADE_WEBCAM_INDEX=1` if you have more than one cam.
@@ -184,10 +184,10 @@ side-cars, meeting notes, "did I actually close that tab"):
 
 ```bash
 uv pip install -e '.[screen]'
-SACCADE_SENSOR=screen SACCADE_SCREEN_INDEX=1 python -m saccade
+SACCADE_SENSOR=screen SACCADE_SCREEN_INDEX=1 uv run python -m saccade
 ```
 
-Index 1 is the primary monitor; `python -m saccade devices` lists them all.
+Index 1 is the primary monitor; `uv run python -m saccade devices` lists them all.
 
 macOS: grant Screen Recording to your terminal app (System Settings > Privacy &
 Security > Screen Recording) and restart the terminal — without it, mss silently
@@ -199,11 +199,11 @@ to the model, so the agent reacts to sound, not just sight:
 ```bash
 uv pip install -e '.[audio]'
 SACCADE_SENSOR=mic SACCADE_GLANCE_BACKEND=gemini SACCADE_FOCUS_BACKEND=gemini \
-  GEMINI_API_KEY=... python -m saccade
+  GEMINI_API_KEY=... uv run python -m saccade
 ```
 
 `SACCADE_MIC_INDEX=1` picks a device; `-1` (default) uses the system mic. No
-hardware? Test hearing on a file: `python -m saccade snapshot clip.wav`.
+hardware? Test hearing on a file: `uv run python -m saccade snapshot clip.wav`.
 
 Hearing needs an audio-capable backend — **gemini** today. Anthropic and Ollama
 (gemma) are vision-only; OpenAI needs a dedicated audio model. Linux also needs
@@ -217,7 +217,7 @@ sound together:
 ```bash
 uv pip install -e '.[camera,audio]'
 SACCADE_SENSOR=av SACCADE_GLANCE_BACKEND=gemini SACCADE_FOCUS_BACKEND=gemini \
-  GEMINI_API_KEY=... python -m saccade
+  GEMINI_API_KEY=... uv run python -m saccade
 ```
 
 **Hear without uploading the room.** Raw audio only reaches Gemini, the one
@@ -261,13 +261,13 @@ uv pip install -e '.[camera]'
 SACCADE_SENSOR=reolink \
   SACCADE_RTSP_USER=admin SACCADE_RTSP_PASSWORD='your-pass' \
   SACCADE_RTSP_HOST=192.168.1.100:554 SACCADE_RTSP_PATH=/h264Preview_01_sub \
-  python -m saccade
+  uv run python -m saccade
 ```
 
 Or pass a full `SACCADE_RTSP_URL='rtsp://...'` yourself.
 
 **Stop typing env vars every run.** Copy `.env.example` → `.env` (gitignored)
-and fill it in. saccade auto-loads it, so `python -m saccade` just works.
+and fill it in. saccade auto-loads it, so `uv run python -m saccade` just works.
 
 ## Layout
 
@@ -275,7 +275,7 @@ and fill it in. saccade auto-loads it, so `python -m saccade` just works.
 |---|---|
 | `schema.py` | the contracts: Frame, Window, Percept, Decision |
 | `sensors/` | input streams — `stub`, `webcam`, `screen`, `mic`, `av` (webcam+mic), `reolink`, `replay` (Protocol in `base.py`) |
-| `devices.py` | `python -m saccade devices` — enumerate cameras/screens/mics/audio-outs |
+| `devices.py` | `uv run python -m saccade devices` — enumerate cameras/screens/mics/audio-outs |
 | `backends/` | swappable models — `stub`, `ollama` (local, stdlib), `gemini`, `openai`, `anthropic` (the only files that touch a model SDK) |
 | `speakers/` | swappable output — `print` (default), `piper` (local TTS, no key), `gemini_tts` (hosted TTS), `home_assistant` (example of a remote-output speaker) |
 | `glance.py` | cheap peripheral perceiver → Percept |
@@ -304,7 +304,7 @@ on macOS, and a bare `pip` installs somewhere the running saccade can't import
 from, which gets you piper installed and `No module named piper` in the same
 terminal.
 
-`SACCADE_PIPER_VOICE` picks the voice (`python -m piper.download_voices` with no
+`SACCADE_PIPER_VOICE` picks the voice (`uv run python -m piper.download_voices` with no
 argument lists them). Voices download to the working directory; if you run
 saccade from elsewhere, point `SACCADE_PIPER_DATA_DIR` at them.
 
@@ -312,7 +312,7 @@ Gemini TTS is the hosted upgrade — better voices, at the cost of a key and a
 network round trip per utterance:
 
 ```bash
-SACCADE_SPEAKER=gemini_tts GEMINI_API_KEY=... python -m saccade
+SACCADE_SPEAKER=gemini_tts GEMINI_API_KEY=... uv run python -m saccade
 ```
 
 The box that *watches* often has no audio out, so by default the speaker writes
@@ -362,7 +362,7 @@ Glance runs constantly, so cost = cadence × price. Reality check:
 deterministically — no live feed, no quota:
 
 ```bash
-SACCADE_SENSOR=replay SACCADE_REPLAY_DIR=frames/ python -m saccade
+SACCADE_SENSOR=replay SACCADE_REPLAY_DIR=frames/ uv run python -m saccade
 ```
 
 ## Evals — tune the hard part with a number, not vibes
@@ -371,7 +371,7 @@ The genuinely hard part is *when to speak up* (Glance's salience judgment). Eval
 make it measurable: a set of labeled scenes (`evals/scenes.json`) and a scorer.
 
 ```bash
-SACCADE_GLANCE_BACKEND=gemini GEMINI_API_KEY=... python -m saccade.evals
+SACCADE_GLANCE_BACKEND=gemini GEMINI_API_KEY=... uv run python -m saccade.evals
 ```
 
 Prints per-case hits/misses and precision / recall / accuracy. Tweak the Glance

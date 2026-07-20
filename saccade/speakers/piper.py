@@ -11,10 +11,10 @@ the two licenses at arm's length. It also keeps onnxruntime out of saccade's
 dependency tree. For the same reason piper-tts is *not* in our extras — the user
 installs it themselves and we call whatever they installed:
 
-    pip install piper-tts
-    python -m piper.download_voices en_US-lessac-medium
+    uv pip install piper-tts
+    uv run python -m piper.download_voices en_US-lessac-medium
 
-Voices are per-language and per-quality; see `python -m piper.download_voices`
+Voices are per-language and per-quality; see `uv run python -m piper.download_voices`
 with no argument for the list.
 """
 
@@ -26,6 +26,10 @@ import time
 from pathlib import Path
 
 from saccade.speakers._playback import play
+
+# Synthesis is a local model load plus a few seconds of audio. If it hasn't
+# finished in two minutes it isn't going to, and the loop is awaiting this.
+SYNTH_TIMEOUT_S = 120.0
 
 
 class PiperError(RuntimeError):
@@ -63,7 +67,16 @@ class PiperSpeaker:
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE
         )
-        _, err = await proc.communicate()
+        try:
+            _, err = await asyncio.wait_for(proc.communicate(), SYNTH_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            raise PiperError(
+                f"Piper didn't finish in {SYNTH_TIMEOUT_S:.0f}s and was killed. A cold "
+                f"model load is slow, but not this slow — check that {self.voice!r} is a "
+                f"complete download (a truncated .onnx hangs instead of erroring)."
+            ) from None
         if proc.returncode != 0:
             raise PiperError(self._diagnose(err.decode(errors="replace")))
         return path
