@@ -10,7 +10,9 @@ lines:` under each section paste verbatim into `.env`.
 from __future__ import annotations
 
 import contextlib
+import json
 import os
+import subprocess
 import sys
 from collections.abc import Iterator
 
@@ -29,9 +31,41 @@ def _quiet_stderr() -> Iterator[None]:
         os.close(fd)
 
 
+def _mac_camera_names() -> list[str]:
+    """Camera names from system_profiler, in AVFoundation order. cv2 exposes no
+    name API, and a Mac with Continuity Camera reports the built-in and the
+    iPhone as 1920x1080 alike — with only resolution to go on the menu is two
+    identical rows and you can't pick. Empty on anything unexpected; the caller
+    then falls back to resolution."""
+    if sys.platform != "darwin":
+        return []
+    try:
+        raw = subprocess.run(
+            ["system_profiler", "-json", "SPCameraDataType"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        ).stdout
+        cams = json.loads(raw).get("SPCameraDataType", [])
+        return [str(c["_name"]) for c in cams if c.get("_name")]
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError):
+        return []
+
+
+def _label_cameras(found: list[tuple[int, str]], names: list[str]) -> list[tuple[int, str]]:
+    """Pair probed indices with names, positionally — cv2 and system_profiler
+    both enumerate AVFoundation, so the orders line up. Only when the counts
+    agree: if they don't, the index->name mapping is unknowable, and a
+    confidently wrong name ("that's my Mac's camera") is worse than a bare
+    resolution."""
+    if not names or len(names) != len(found):
+        return found
+    return [(i, f"{n} ({desc})") for (i, desc), n in zip(found, names, strict=True)]
+
+
 def _cameras() -> tuple[list[tuple[int, str]], str]:
-    """Probe cv2 indices upward. Names aren't cross-platform via cv2, so show
-    resolution as the tell (e.g. built-in is often 1280x720, USB may differ)."""
+    """Probe cv2 indices upward, naming them via the OS where we can."""
     try:
         import cv2
     except ImportError:
@@ -56,7 +90,7 @@ def _cameras() -> tuple[list[tuple[int, str]], str]:
             "no camera opened — grant Camera access to your terminal app "
             "(System Settings > Privacy & Security > Camera), then rerun"
         )
-    return out, ""
+    return _label_cameras(out, _mac_camera_names()), ""
 
 
 def _screens() -> tuple[list[tuple[int, str]], str]:

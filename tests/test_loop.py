@@ -36,6 +36,19 @@ class _BoomBackend:
         raise RuntimeError("boom")
 
 
+class _FlappingBackend:
+    """Fails every other call — an intermittent fault, not a dead backend."""
+
+    def __init__(self):
+        self.calls = 0
+
+    async def complete(self, prompt, frames, schema=None):
+        self.calls += 1
+        if self.calls % 2:
+            raise RuntimeError("boom")
+        return '{"reasoning":"r","speak":false,"message":""}'
+
+
 def _mem(tmp_path):
     return Memory(str(tmp_path / "ep.jsonl"), str(tmp_path / "prefs.md"))
 
@@ -139,6 +152,34 @@ def test_run_survives_a_failing_backend(tmp_path):
         looplib.run(sensor, glance, focus, _mem(tmp_path), on_action=actions.append, glance_fps=0)
     )
     assert actions == []  # glance kept failing; no crash, no action
+
+
+def test_intermittent_failure_is_reported_each_time_it_returns(tmp_path, capsys):
+    """A tick that worked ends the streak. Without that, the second failure looks
+    like a continuation of the first and stays hidden for _REPEAT_EVERY more hits,
+    which is how a flaky camera quietly becomes a dead one. Paced rather than
+    instant, because the suppression only shows up across several ticks."""
+
+    class _PacedSensor:
+        async def stream(self):
+            for i in range(6):
+                yield Frame(ts=float(i), image=None, meta={"scene": f"s{i}"})
+                await asyncio.sleep(0.05)
+
+    glance = Glance(_FlappingBackend())
+    asyncio.run(
+        looplib.run(
+            _PacedSensor(),
+            glance,
+            Focus(StubBackend("focus")),
+            _mem(tmp_path),
+            on_action=[].append,
+            glance_fps=50.0,
+        )
+    )
+    reported = capsys.readouterr().out.count("skipped a tick")
+    # Without the reset this is exactly 1, however many times it actually failed.
+    assert reported >= 2, f"intermittent failures were swallowed, saw {reported}"
 
 
 class _SlowFocusBackend:
