@@ -1,14 +1,14 @@
 """The orchestrator. Coroutines running in parallel, like the brain:
 
-  capture     — continuously fills the sensory buffer at the sensor's rate
-  glance loop — samples the buffer on its own (glance_fps) clock and reasons
-  focus       — with concurrent_focus, a salient frame spawns a background
+  capture:      continuously fills the sensory buffer at the sensor's rate
+  glance loop:  samples the buffer on its own (glance_fps) clock and reasons
+  focus:        with concurrent_focus, a salient frame spawns a background
                 Focus so Glance never goes blind while the big model reasons
 
 Perception never pauses while the model thinks. Capture never blocks on Glance;
-with concurrent_focus, Glance never blocks on Focus (single-slot — one Focus at
+with concurrent_focus, Glance never blocks on Focus (single-slot: one Focus at
 a time, so slow reasoning doesn't stack interruptions). If glance_fps >=
-capture_fps, every captured frame gets glanced (lockstep — good for replay). If
+capture_fps, every captured frame gets glanced (lockstep: good for replay). If
 it's lower (e.g. rate-limited live), the loop samples the latest while the buffer
 still holds a dense clip for Focus.
 """
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 # How often to re-print an error that keeps repeating identically.
 _REPEAT_EVERY = 20
 
-# on_action may be sync (print) or async (a Speaker.say) — the loop handles both.
+# on_action may be sync (print) or async (a Speaker.say); the loop handles both.
 Action = Callable[[str], None | Awaitable[None]]
 
 
@@ -45,7 +45,7 @@ def _log(p: Percept) -> None:
 def _next_interval(percept: Percept | None, floor: float, ceiling: float, adaptive: bool) -> float:
     """How long to wait before the next glance. Without adaptive cadence (or a
     suggestion) it's the fixed floor. With it, the model's `next_glance_s` sets
-    the pace — but clamped to [floor, ceiling]: floor is the fastest rate (the
+    the pace, but clamped to [floor, ceiling]: floor is the fastest rate (the
     configured glance_fps, which may exist to respect a rate limit), ceiling caps
     how long we'll rest on a calm scene. Adaptive only ever slows us down."""
     if not adaptive or percept is None or percept.next_glance_s <= 0:
@@ -55,7 +55,7 @@ def _next_interval(percept: Percept | None, floor: float, ceiling: float, adapti
 
 async def _glance(glance: Glance, memory: Memory) -> Percept | None:
     """Sample the latest frame and observe a Percept. Returns None if the buffer's
-    empty. The cheap, serial half of a tick — always runs on the glance clock."""
+    empty. The cheap, serial half of a tick (always runs on the glance clock)."""
     latest = memory.sensory.recent(1)
     if not latest:
         return None
@@ -74,12 +74,12 @@ async def _focus_act(
 ) -> None:
     """The expensive half: reason over a clip and maybe speak. Can be slow (the
     big model), so run() may run this concurrently while Glance keeps watching.
-    It owns its own resilience — a failure here must never take down the loop or
+    It owns its own resilience: a failure here must never take down the loop or
     surface as an unretrieved task exception."""
     try:
         clip = memory.sensory.recent(focus_clip_frames)
         decision = await focus.reason(percept, Window(frames=clip), memory)
-        # Log every verdict, not just spoken ones — otherwise deliberate silence
+        # Log every verdict, not just spoken ones; otherwise deliberate silence
         # (Focus judging it not worth interrupting) looks identical to a dead path.
         print(f"[focus]  speak={str(decision.speak):5}  {decision.reasoning[:80]}")
         if decision.speak:
@@ -89,7 +89,7 @@ async def _focus_act(
             result = on_action(decision.message)
             if inspect.isawaitable(result):
                 await result
-    except Exception as e:  # noqa: BLE001 — a bad Focus must not kill the agent
+    except Exception as e:  # noqa: BLE001 (a bad Focus must not kill the agent)
         print(f"[focus]  skipped: {type(e).__name__}: {e}")
 
 
@@ -100,7 +100,7 @@ async def _tick(
     focus_clip_frames: int,
     on_action: Action,
 ) -> Percept | None:
-    """One glance, and — if salient — a focused look, inline (serial). Returns the
+    """One glance, and, if salient, a focused look, inline (serial). Returns the
     Percept (for pacing) or None if the buffer's empty. run() uses this for the
     non-concurrent path; it's also the easy-to-test unit of loop behavior."""
     percept = await _glance(glance, memory)
@@ -127,7 +127,7 @@ async def run(
     last_err, repeats = "", 0
 
     async def capture() -> None:
-        # Never pauses while the model thinks — keeps the buffer current.
+        # Never pauses while the model thinks: keeps the buffer current.
         try:
             async for frame in sensor.stream():
                 memory.observe_frame(frame)
@@ -144,7 +144,7 @@ async def run(
                     # Glance stays on its clock; a salient frame kicks off Focus in
                     # the background so perception never goes blind while it reasons.
                     # Single-slot: if a Focus is still running, keep watching rather
-                    # than stacking interruptions — Glance still observes the frames.
+                    # than stacking interruptions; Glance still observes the frames.
                     percept = await _glance(glance, memory)
                     if percept and percept.escalate and (focus_task is None or focus_task.done()):
                         focus_task = asyncio.create_task(
@@ -157,7 +157,7 @@ async def run(
                 # and the "still failing" count describes a streak that already
                 # recovered.
                 last_err, repeats = "", 0
-            except Exception as e:  # noqa: BLE001 — resilience is the whole point here
+            except Exception as e:  # noqa: BLE001 (resilience is the whole point here)
                 # A broken backend fails identically every tick. Say it once and
                 # then stay quiet, or the one line that tells you how to fix it
                 # scrolls away under a thousand copies of itself.

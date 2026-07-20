@@ -2,7 +2,7 @@
 
     python -m saccade devices
 
-Each probe is lazy and self-contained — a missing dep or a failing subsystem
+Each probe is lazy and self-contained: a missing dep or a failing subsystem
 prints a hint for that section instead of crashing the command. The `.env
 lines:` under each section paste verbatim into `.env`.
 """
@@ -19,7 +19,7 @@ from collections.abc import Iterator
 
 @contextlib.contextmanager
 def _quiet_stderr() -> Iterator[None]:
-    """OpenCV's C layer logs camera-probe noise straight to fd 2 — silence it
+    """OpenCV's C layer logs camera-probe noise straight to fd 2; silence it
     around the probe so the device table stays readable."""
     fd = os.dup(2)
     try:
@@ -34,7 +34,7 @@ def _quiet_stderr() -> Iterator[None]:
 def _mac_camera_names() -> list[str]:
     """Camera names from system_profiler, in AVFoundation order. cv2 exposes no
     name API, and a Mac with Continuity Camera reports the built-in and the
-    iPhone as 1920x1080 alike — with only resolution to go on the menu is two
+    iPhone as 1920x1080 alike; with only resolution to go on the menu is two
     identical rows and you can't pick. Empty on anything unexpected; the caller
     then falls back to resolution."""
     if sys.platform != "darwin":
@@ -54,7 +54,7 @@ def _mac_camera_names() -> list[str]:
 
 
 def _label_cameras(found: list[tuple[int, str]], names: list[str]) -> list[tuple[int, str]]:
-    """Pair probed indices with names, positionally — cv2 and system_profiler
+    """Pair probed indices with names, positionally: cv2 and system_profiler
     both enumerate AVFoundation, so the orders line up. Only when the counts
     agree: if they don't, the index->name mapping is unknowable, and a
     confidently wrong name ("that's my Mac's camera") is worse than a bare
@@ -87,7 +87,7 @@ def _cameras() -> tuple[list[tuple[int, str]], str]:
                 break  # indices are contiguous in practice; stop probing air
     if not out and sys.platform == "darwin":
         return [], (
-            "no camera opened — grant Camera access to your terminal app "
+            "no camera opened; grant Camera access to your terminal app "
             "(System Settings > Privacy & Security > Camera), then rerun"
         )
     return _label_cameras(out, _mac_camera_names()), ""
@@ -105,7 +105,7 @@ def _screens() -> tuple[list[tuple[int, str]], str]:
                 (i, f"{m['width']}x{m['height']} at ({m['left']},{m['top']})")
                 for i, m in enumerate(sct.monitors[1:], start=1)
             ], ""
-    except Exception as e:  # headless box, no $DISPLAY, ... — keep the other sections
+    except Exception as e:  # headless box, no $DISPLAY, ...; keep the other sections
         return [], f"screen probe failed: {e}"
 
 
@@ -115,9 +115,9 @@ def _audio() -> tuple[list[tuple[int, str]], list[tuple[int, str]], str]:
     except ImportError:
         return [], [], "uv pip install -e '.[audio]'  # sounddevice"
     except OSError:
-        # sounddevice imports but PortAudio (the C lib) is missing — bundled in
+        # sounddevice imports but PortAudio (the C lib) is missing: bundled in
         # the Mac/Windows wheels, apt/brew territory on Linux.
-        return [], [], "PortAudio not found — `sudo apt install libportaudio2` (Linux)"
+        return [], [], "PortAudio not found: `sudo apt install libportaudio2` (Linux)"
     try:
         devs = sd.query_devices()
     except Exception as e:  # no PortAudio backend / no audio subsystem
@@ -132,7 +132,7 @@ def _print(
 ) -> None:
     print(f"\n{title}")
     if hint:
-        print(f"  (none — {hint})")
+        print(f"  (none: {hint})")
         return
     if not items:
         print("  (none found)")

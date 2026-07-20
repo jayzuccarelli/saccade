@@ -2,8 +2,8 @@
 
     python -m saccade setup
 
-Answers three questions — what saccade watches or hears, which model thinks, how
-it answers — and writes the `.env` that `python -m saccade` reads. Everything it
+Answers three questions (what saccade watches or hears, which model thinks, how
+it answers) and writes the `.env` that `python -m saccade` reads. Everything it
 writes is a plain env var you can edit by hand afterwards (see `.env.example`);
 the wizard is a convenience over `python -m saccade devices`, not a new config
 system.
@@ -50,20 +50,20 @@ def _one_sensor_choices(devs: Devices) -> list[Choice]:
     out: list[Choice] = []
     for i, desc in cams:
         out.append(
-            (f"Camera {i} — {desc}", {"SACCADE_SENSOR": "webcam", "SACCADE_WEBCAM_INDEX": str(i)})
+            (f"Camera {i}: {desc}", {"SACCADE_SENSOR": "webcam", "SACCADE_WEBCAM_INDEX": str(i)})
         )
     for i, desc in screens:
         out.append(
-            (f"Screen {i} — {desc}", {"SACCADE_SENSOR": "screen", "SACCADE_SCREEN_INDEX": str(i)})
+            (f"Screen {i}: {desc}", {"SACCADE_SENSOR": "screen", "SACCADE_SCREEN_INDEX": str(i)})
         )
     for i, name in mics:
-        out.append((f"Mic {i} — {name}", {"SACCADE_SENSOR": "mic", "SACCADE_MIC_INDEX": str(i)}))
+        out.append((f"Mic {i}: {name}", {"SACCADE_SENSOR": "mic", "SACCADE_MIC_INDEX": str(i)}))
     return out
 
 
 def _sensor_kinds(env: dict[str, str]) -> set[str]:
     """The sensor kinds this env selects. A single name, or several after a
-    "several at once" pick — every downstream question (does it hear? does macOS
+    "several at once" pick: every downstream question (does it hear? does macOS
     need a camera prompt?) has to look at all of them, not just the string."""
     return {k.strip() for k in env.get("SACCADE_SENSOR", "").split(",") if k.strip()}
 
@@ -95,16 +95,16 @@ def _sensor_choices(devs: Devices) -> list[Choice]:
     out: list[Choice] = _one_sensor_choices(devs)
     singles = len(out)
     if cams and mics:
-        # Which camera and which mic is a follow-up question — pairing the first
+        # Which camera and which mic is a follow-up question: pairing the first
         # of each looks reasonable until you meet a Mac whose first mic is the
         # user's iPhone and whose first camera is the built-in webcam.
-        out.append(("A camera and a mic together — see and hear at once", {"SACCADE_SENSOR": "av"}))
+        out.append(("A camera and a mic together: see and hear at once", {"SACCADE_SENSOR": "av"}))
     if singles >= 2:
         # Distinct from `av`: that fuses one camera grab and one mic clip into a
         # single Frame describing one instant. This just runs several inputs at
-        # their own pace and interleaves them — watch the screen, hear the room.
-        out.append(("Several at once — pick which on the next screen", {"SACCADE_SENSOR": "multi"}))
-    out.append(("Nothing — scripted demo, no hardware", {"SACCADE_SENSOR": "stub"}))
+        # their own pace and interleaves them: watch the screen, hear the room.
+        out.append(("Several at once: pick which on the next screen", {"SACCADE_SENSOR": "multi"}))
+    out.append(("Nothing: scripted demo, no hardware", {"SACCADE_SENSOR": "stub"}))
     return out
 
 
@@ -126,12 +126,12 @@ def _ask_many(question: str, choices: list[Choice]) -> list[Choice]:
 
 def _device_choices(kind: str, var: str, items: list[tuple[int, str]]) -> list[Choice]:
     """Menu over one device family, setting just that family's index var."""
-    return [(f"{kind} {i} — {desc}", {var: str(i)}) for i, desc in items]
+    return [(f"{kind} {i}: {desc}", {var: str(i)}) for i, desc in items]
 
 
 def _ollama_state() -> tuple[bool, str]:
     """Whether Ollama can actually answer, and what to say about it. Ask the
-    daemon, don't ask `which ollama` — a Mac with the binary installed and the
+    daemon, don't ask `which ollama`: a Mac with the binary installed and the
     server down is the common case, and it fails as connection-refused on every
     tick rather than at setup time, which is where you'd want to hear it."""
     try:
@@ -139,17 +139,17 @@ def _ollama_state() -> tuple[bool, str]:
             models = json.loads(resp.read()).get("models", [])
     except (OSError, ValueError):  # URLError subclasses OSError
         if shutil.which("ollama"):
-            return False, "not running — start it: ollama serve"
-        return False, "not installed — see https://ollama.com"
+            return False, "not running; start it: ollama serve"
+        return False, "not installed; see https://ollama.com"
     if not models:
-        return False, "running, but no models pulled — ollama pull gemma3:4b"
+        return False, "running, but no models pulled: ollama pull gemma3:4b"
     return True, f"ready, {len(models)} model(s) pulled"
 
 
 GLANCE_VAR = "SACCADE_GLANCE_BACKEND"
 FOCUS_VAR = "SACCADE_FOCUS_BACKEND"
 
-_NO_MODEL = "No model — scripted demo output, nothing is called"
+_NO_MODEL = "No model: scripted demo output, nothing is called"
 
 
 def _ordered(order: list[str], first: str = "", last: str = "") -> list[str]:
@@ -173,17 +173,17 @@ def _stt_state() -> tuple[bool, str]:
 
 
 def _stt_choices(stt: tuple[bool, str]) -> list[Choice]:
-    """Where the audio gets understood. Leading with local isn't a preference —
+    """Where the audio gets understood. Leading with local isn't a preference:
     it's the only option where the microphone in your room doesn't become an
     upload, and it's also the one that frees you from the single backend that
     accepts audio at all."""
     ready, tag = stt
     return [
         (
-            f"Transcribe on this machine — the audio never leaves, any model can read it ({tag})",
+            f"Transcribe on this machine: the audio never leaves, any model can read it ({tag})",
             {STT_VAR: "whisper"},
         ),
-        ("Send the recording to the model — only Gemini accepts audio", {STT_VAR: ""}),
+        ("Send the recording to the model: only Gemini accepts audio", {STT_VAR: ""}),
     ]
 
 
@@ -193,14 +193,14 @@ def _glance_choices(ollama: tuple[bool, str], hears_audio: bool = False) -> list
     vendor all day. Local leads whenever it can actually run.
 
     Gemini takes the lead instead when the sensor captures audio, because it's the
-    only backend that forwards it — anything else accepts the mic pick and then
+    only backend that forwards it; anything else accepts the mic pick and then
     silently drops the audio half."""
     usable, tag = ollama
     labels = {
-        "ollama": f"Ollama — runs on this machine, frames never leave it ({tag})",
-        "gemini": "Gemini — hosted; every frame it looks at is uploaded (only one that hears audio)",
-        "openai": "OpenAI — hosted; every frame it looks at is uploaded",
-        "anthropic": "Anthropic — hosted; every frame it looks at is uploaded",
+        "ollama": f"Ollama: runs on this machine, frames never leave it ({tag})",
+        "gemini": "Gemini: hosted; every frame it looks at is uploaded (only one that hears audio)",
+        "openai": "OpenAI: hosted; every frame it looks at is uploaded",
+        "anthropic": "Anthropic: hosted; every frame it looks at is uploaded",
         "stub": _NO_MODEL,
     }
     order = _ordered(
@@ -219,10 +219,10 @@ def _focus_choices(ollama: tuple[bool, str]) -> list[Choice]:
     usable, tag = ollama
     sees = "hosted; sees only the moments Glance escalates"
     labels = {
-        "gemini": f"Gemini — {sees}",
-        "anthropic": f"Anthropic — {sees}",
-        "openai": f"OpenAI — {sees}",
-        "ollama": f"Ollama — runs on this machine, nothing leaves it ({tag})",
+        "gemini": f"Gemini: {sees}",
+        "anthropic": f"Anthropic: {sees}",
+        "openai": f"OpenAI: {sees}",
+        "ollama": f"Ollama: runs on this machine, nothing leaves it ({tag})",
         "stub": _NO_MODEL,
     }
     order = _ordered(
@@ -255,7 +255,7 @@ def _piper_setup_commands() -> str:
     isn't on PATH at all, so `python -m piper.download_voices` picks Homebrew's
     3.14 and reports 'No module named piper' while piper sits happily in .venv.
     And `python -m pip install` fails in a uv-made venv, which ships without pip
-    — a different confusing error for the same user. So: name the interpreter,
+    (a different confusing error for the same user). So: name the interpreter,
     and ask which installer this environment actually has."""
     exe = sys.executable
     if _importable("pip"):
@@ -274,20 +274,20 @@ def _speaker_choices(piper: tuple[bool, str]) -> list[Choice]:
 
     Speaking is offered whether or not any output *devices* were enumerated.
     Listing them needs the audio extra (sounddevice); actually making a noise
-    doesn't — SACCADE_PLAY_CMD hands the wav to afplay/aplay and the OS picks the
+    doesn't: SACCADE_PLAY_CMD hands the wav to afplay/aplay and the OS picks the
     default device. Gating on the device list denied a fresh install the one
     speaker that needs no key and no extra at all."""
     out: list[Choice] = [("Text in the terminal", {"SACCADE_SPEAKER": "print"})]
     play = "afplay" if sys.platform == "darwin" else "aplay"
     out.append(
         (
-            f"Speak out loud — Piper ({piper[1]})",
+            f"Speak out loud: Piper ({piper[1]})",
             {"SACCADE_SPEAKER": "piper", "SACCADE_PLAY_CMD": play},
         )
     )
     out.append(
         (
-            "Speak out loud — Gemini TTS (better voice, needs GEMINI_API_KEY)",
+            "Speak out loud: Gemini TTS (better voice, needs GEMINI_API_KEY)",
             {"SACCADE_SPEAKER": "gemini_tts", "SACCADE_PLAY_CMD": play},
         )
     )
@@ -296,7 +296,7 @@ def _speaker_choices(piper: tuple[bool, str]) -> list[Choice]:
 
 def _missing_extras(devs: Devices, hints: tuple[str, str, str]) -> list[str]:
     """Extras worth installing given what the probes couldn't see. Only the
-    ImportError hints in devices.py start with `uv pip install` — match that,
+    ImportError hints in devices.py start with `uv pip install`; match that,
     not a bare "install", or the PortAudio hint ("apt install libportaudio2")
     gets misread as a missing Python package."""
     names = ("camera", "screen", "audio")
@@ -342,7 +342,7 @@ def _write_env(path: Path, env: dict[str, str]) -> bool:
                 print(f"  {k}={v}")
             return False
         # .env has no suffix to replace (it's all stem), so with_suffix would
-        # make ".env.env.bak" — append instead.
+        # make ".env.env.bak"; append instead.
         backup = path.with_name(path.name + ".bak")
         shutil.copyfile(path, backup)
         print(f"  (backed up to {backup})")
@@ -360,7 +360,7 @@ def main() -> None:
         )
         raise SystemExit(2)
 
-    print("\nsaccade setup — probing this machine...")
+    print("\nsaccade setup: probing this machine...")
     cams, cam_hint = _cameras()
     screens, screen_hint = _screens()
     mics, outs, audio_hint = _audio()
@@ -384,7 +384,7 @@ def main() -> None:
         picked = _ask_many("Which ones?", _one_sensor_choices(devs))
         merged, dropped = _merge_sensors(picked)
         for label in dropped:
-            print(f"  note: skipped {label} — only one of each kind for now")
+            print(f"  note: skipped {label} (only one of each kind for now)")
         env.update(merged)
     if env.get("SACCADE_SENSOR") == "av":
         env.update(_ask("Which camera?", _device_choices("Camera", "SACCADE_WEBCAM_INDEX", cams)))

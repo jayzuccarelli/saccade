@@ -1,7 +1,7 @@
 """Speak through Home Assistant: synthesize the line, serve the clip on the LAN,
 and tell a media_player to play it.
 
-Decoupled from HA's filesystem — saccade serves its own audio over a small HTTP
+Decoupled from HA's filesystem: saccade serves its own audio over a small HTTP
 server and HA just fetches the URL, so there's no dependency on HA's `www` dir or
 host. Built and tested against a Sonos speaker. Any `media_player` works.
 
@@ -24,7 +24,7 @@ from typing import Any
 
 class _QuietHandler(SimpleHTTPRequestHandler):
     """A media player closes the socket the instant it has the clip, which surfaces
-    mid-send as BrokenPipe/ConnectionReset. That's expected, not an error — swallow
+    mid-send as BrokenPipe/ConnectionReset. That's expected, not an error; swallow
     it (and the per-fetch access log) so a normal playback doesn't dump a traceback
     every time saccade speaks."""
 
@@ -52,7 +52,7 @@ class _QuietHandler(SimpleHTTPRequestHandler):
 def _lan_ip() -> str:
     """The address other devices on the LAN can reach this box at.
 
-    Falls back to loopback when there's no egress route (e.g. a sandbox) — with
+    Falls back to loopback when there's no egress route (e.g. a sandbox); with
     no LAN there's nothing for HA to fetch from anyway, so loopback is the only
     sane default and beats crashing the constructor."""
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

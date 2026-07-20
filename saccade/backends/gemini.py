@@ -1,7 +1,7 @@
 """Gemini backend. Defaults per tier live in DEFAULT_MODELS in __main__.py.
 
 Lazy import of google-genai so the harness runs without it. Validated live end
-to end — RTSP camera → Glance @ 1Hz → Focus → TTS.
+to end: RTSP camera → Glance @ 1Hz → Focus → TTS.
 
     pip install google-genai   # then set GEMINI_API_KEY
 """
@@ -21,7 +21,7 @@ class GeminiBackend:
         self._client: Any = None
 
     def _client_lazy(self) -> Any:
-        # Built once and reused — Glance calls this ~1/sec, and a fresh Client per
+        # Built once and reused: Glance calls this ~1/sec, and a fresh Client per
         # call rebuilds the connection pool every tick.
         if self._client is None:
             from google import genai

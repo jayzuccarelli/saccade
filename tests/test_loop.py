@@ -37,7 +37,7 @@ class _BoomBackend:
 
 
 class _FlappingBackend:
-    """Fails every other call — an intermittent fault, not a dead backend."""
+    """Fails every other call: an intermittent fault, not a dead backend."""
 
     def __init__(self):
         self.calls = 0
@@ -183,7 +183,7 @@ def test_intermittent_failure_is_reported_each_time_it_returns(tmp_path, capsys)
 
 
 class _SlowFocusBackend:
-    """A Focus that blocks until released — stands in for a slow big model."""
+    """A Focus that blocks until released. Stands in for a slow big model."""
 
     def __init__(self):
         self.entered = asyncio.Event()
@@ -197,7 +197,7 @@ class _SlowFocusBackend:
 
 def test_run_concurrent_focus_completes_backgrounded_action(tmp_path):
     """A Focus spawned in the background must still run its action to completion
-    before run() returns — the shutdown drains the in-flight task."""
+    before run() returns: the shutdown drains the in-flight task."""
     slow = _SlowFocusBackend()
 
     class _Sensor:
@@ -223,7 +223,7 @@ def test_run_concurrent_focus_completes_backgrounded_action(tmp_path):
 
 
 def test_concurrent_focus_is_single_slot(tmp_path):
-    """While one Focus is in flight, further escalations don't stack a second —
+    """While one Focus is in flight, further escalations don't stack a second;
     Glance keeps observing but only one Focus runs at a time."""
     slow = _SlowFocusBackend()
     starts = {"n": 0}

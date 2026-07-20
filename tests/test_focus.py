@@ -33,7 +33,7 @@ def test_focus_prompt_handles_no_history(tmp_path):
 
 def test_focus_drops_utterances_older_than_the_window(tmp_path):
     """A line said in a prior session (older than the window) must not mute a
-    fresh run — episodic persists on disk, so without a time bound 'recent'
+    fresh run: episodic persists on disk, so without a time bound 'recent'
     leaks across runs. That was the 'I walked in and heard nothing' bug."""
     memory = Memory(str(tmp_path / "ep.jsonl"), str(tmp_path / "p.md"))
     memory.episodic.record("action", {"message": "there is someone behind the plants"})

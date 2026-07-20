@@ -1,4 +1,4 @@
-"""Local webcam as a Sensor — Mac (AVFoundation), Linux (V4L2), Windows (MSMF).
+"""Local webcam as a Sensor: Mac (AVFoundation), Linux (V4L2), Windows (MSMF).
 
     SACCADE_SENSOR=webcam SACCADE_WEBCAM_INDEX=0 python -m saccade
 
@@ -28,12 +28,12 @@ class WebcamSensor:
             hint = ""
             if sys.platform == "darwin":
                 hint = (
-                    " — on macOS, grant Camera access to your terminal app"
+                    ": on macOS, grant Camera access to your terminal app"
                     " (System Settings > Privacy & Security > Camera), then rerun"
                 )
             raise RuntimeError(f"could not open webcam index {self.index}{hint}")
         # Shallow driver buffer so cap.read() leans toward the newest frame. Only
-        # V4L2 honors this (AVFoundation/MSMF silently ignore it) — at 1fps the
+        # V4L2 honors this (AVFoundation/MSMF silently ignore it); at 1fps the
         # residual staleness is one capture interval, fine for ambient watching.
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         fails = 0
@@ -43,7 +43,7 @@ class WebcamSensor:
                 ok, frame = cap.read()
                 if not ok:
                     # Unplugged USB cam or macOS sleep/wake killing the session:
-                    # read() then fails forever. After a few ticks, reopen —
+                    # read() then fails forever. After a few ticks, reopen;
                     # otherwise the loop re-analyzes nothing, silently, at 1Hz.
                     fails += 1
                     if fails >= 3:

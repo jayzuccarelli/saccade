@@ -1,4 +1,4 @@
-"""Glance (peripheral, low-acuity) downscales its own input. Focus does not —
+"""Glance (peripheral, low-acuity) downscales its own input. Focus does not;
 it always gets full resolution, which is why downscaling lives here, not in the
 sensor."""
 
@@ -59,7 +59,7 @@ def test_glance_sends_original_when_off(tmp_path):
 
 
 def test_glance_passes_audio_frames_through(tmp_path):
-    """Downscaling is image-only — an audio-only frame (mic sensor) must reach the
+    """Downscaling is image-only: an audio-only frame (mic sensor) must reach the
     backend with its clip intact, not get dropped by the shrink path."""
     be = _CapturingBackend()
     g = Glance(be, max_dim=768)
@@ -75,8 +75,8 @@ def test_glance_passes_audio_frames_through(tmp_path):
 
 def test_glance_marks_already_escalated_percepts_in_context(tmp_path):
     """An ongoing event Glance already escalated is marked [escalated] in its
-    recent context, so it has an anchor not to re-flag the same thing each tick
-    — the over-escalation seen on a motionless person on the couch."""
+    recent context, so it has an anchor not to re-flag the same thing each tick:
+    the over-escalation seen on a motionless person on the couch."""
     memory = _mem(tmp_path)
     memory.observe(Percept(ts=0.0, summary="person on the couch", escalate=True))
     memory.observe(Percept(ts=1.0, summary="person on the couch", escalate=False))

@@ -1,4 +1,4 @@
-"""Local microphone as a Sensor — captures a short audio clip each tick.
+"""Local microphone as a Sensor: captures a short audio clip each tick.
 
     SACCADE_SENSOR=mic SACCADE_MIC_INDEX=0 python -m saccade
 
@@ -7,7 +7,7 @@ Frame, the audio twin of WebcamSensor's JPEG frames. Recording itself paces the
 stream (a 1s clip takes ~1s), so there's no separate sleep.
 
 Needs the audio extra (sounddevice + PortAudio). Raw audio only reaches a backend
-that accepts it — Gemini today; Anthropic/Ollama are vision-only.
+that accepts it: Gemini today; Anthropic/Ollama are vision-only.
 
 With a `transcriber` (SACCADE_STT=whisper) the clip is turned into text here
 instead, and the audio is **not** attached to the Frame. That's the point: the
@@ -29,26 +29,26 @@ from typing import Any
 
 from saccade.schema import Frame
 
-SAMPLE_RATE = 16000  # 16kHz mono — plenty for speech, keeps the payload small
+SAMPLE_RATE = 16000  # 16kHz mono: plenty for speech, keeps the payload small
 
 
 def require_audio() -> None:
-    """Fail early with a clear message if the audio stack isn't installed —
+    """Fail early with a clear message if the audio stack isn't installed;
     beats a mid-loop crash. Shared by every sensor that records."""
     try:
         import sounddevice  # noqa: F401
     except ImportError as e:
         raise RuntimeError("microphone needs the audio extra: uv pip install -e '.[audio]'") from e
     except OSError as e:
-        # sounddevice imports but PortAudio (the C lib) is missing — bundled in
+        # sounddevice imports but PortAudio (the C lib) is missing: bundled in
         # the Mac/Windows wheels, apt/brew territory on Linux.
         raise RuntimeError(
-            "microphone needs PortAudio — `sudo apt install libportaudio2` (Linux)"
+            "microphone needs PortAudio: `sudo apt install libportaudio2` (Linux)"
         ) from e
 
 
 def record_pcm(seconds: float, sample_rate: int, device: int | None) -> bytes:
-    """Blocking capture of one mono clip — run off-thread. Returns raw int16 PCM."""
+    """Blocking capture of one mono clip; run off-thread. Returns raw int16 PCM."""
     import sounddevice as sd  # lazy: pip install sounddevice
 
     n = int(seconds * sample_rate)
@@ -98,6 +98,6 @@ class MicSensor:
                 yield Frame(ts=time.time(), audio=wav, audio_mime="audio/wav")
                 continue
             # Transcribed here, so the audio stays here. Most clips are silence,
-            # which comes back as "" — still a Frame, so the loop keeps its
+            # which comes back as "", still a Frame, so the loop keeps its
             # cadence and Glance sees "nothing was said" rather than nothing.
             yield Frame(ts=time.time(), text=await self.transcriber.transcribe(wav))

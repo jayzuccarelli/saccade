@@ -5,7 +5,7 @@
 
 Hearing used to be a property of one vendor: Gemini was the only backend that
 accepted audio, so putting a microphone in the room meant uploading the room.
-Transcribing here inverts that — the audio never leaves, and what reaches the
+Transcribing here inverts that: the audio never leaves, and what reaches the
 model is a line of text that *any* backend can read, local ones included.
 
 faster-whisper is the engine: MIT, `pip install faster-whisper`, and it bundles
@@ -13,7 +13,7 @@ FFmpeg through PyAV so Windows needs no system install. It's imported normally
 rather than shelled out to (unlike Piper, which is GPL); it lives behind the
 `stt` extra so the base harness stays stdlib-only.
 
-The model is loaded once and reused — it's a few hundred MB and reloading it per
+The model is loaded once and reused: it's a few hundred MB and reloading it per
 clip would cost more than the transcription.
 """
 
@@ -30,7 +30,7 @@ DEFAULT_MODEL = "base"
 
 class Transcriber:
     """Lazily-loaded local speech-to-text. `transcribe` returns "" for silence,
-    which is most clips — an ambient mic is mostly nothing happening."""
+    which is most clips: an ambient mic is mostly nothing happening."""
 
     def __init__(self, model: str = DEFAULT_MODEL, compute_type: str = "int8") -> None:
         self.model_name = model
@@ -51,6 +51,6 @@ class Transcriber:
         return " ".join(s.text.strip() for s in segments).strip()
 
     async def transcribe(self, wav: bytes) -> str:
-        """Transcribe WAV bytes off-thread — the model call is CPU-bound and would
+        """Transcribe WAV bytes off-thread: the model call is CPU-bound and would
         otherwise stall the capture loop it's feeding."""
         return await asyncio.to_thread(self._run, wav)
