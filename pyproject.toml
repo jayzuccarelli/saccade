@@ -31,6 +31,13 @@ screen = ["mss>=6.0.0", "pillow>=9.0.0"]
 audio = ["sounddevice>=0.4.5", "numpy>=1.21"]  # numpy: sounddevice's rec()/play() arrays
 stt = ["faster-whisper>=1.0"]  # local transcription; MIT, bundles ffmpeg via PyAV
 
+[tool.uv]
+# faster-whisper pulls onnxruntime, which dropped cp310 wheels at 1.24 and ships
+# no sdist, so an unconstrained resolve locks a build that cannot install on our
+# declared 3.10 floor. Constrain it rather than raise the floor: 3.10 users get
+# an onnxruntime that actually has a wheel, everyone else gets current.
+constraint-dependencies = ["onnxruntime<1.24; python_full_version < '3.11'"]
+
 [dependency-groups]
 # uv run includes this group by default, so `make check` works on a bare
 # machine (and in CI) without pillow's image tests silently skipping.
