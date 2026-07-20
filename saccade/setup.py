@@ -162,6 +162,31 @@ def _ordered(order: list[str], first: str = "", last: str = "") -> list[str]:
     return out
 
 
+STT_VAR = "SACCADE_STT"
+
+
+def _stt_state() -> tuple[bool, str]:
+    """Whether local transcription can run here."""
+    if _importable("faster_whisper"):
+        return True, "ready"
+    return False, "needs the stt extra"
+
+
+def _stt_choices(stt: tuple[bool, str]) -> list[Choice]:
+    """Where the audio gets understood. Leading with local isn't a preference —
+    it's the only option where the microphone in your room doesn't become an
+    upload, and it's also the one that frees you from the single backend that
+    accepts audio at all."""
+    ready, tag = stt
+    return [
+        (
+            f"Transcribe on this machine — the audio never leaves, any model can read it ({tag})",
+            {STT_VAR: "whisper"},
+        ),
+        ("Send the recording to the model — only Gemini accepts audio", {STT_VAR: ""}),
+    ]
+
+
 def _glance_choices(ollama: tuple[bool, str], hears_audio: bool = False) -> list[Choice]:
     """Glance is the tier that runs about once a second and looks at *every* frame,
     so this pick decides whether a camera pointed at your kitchen streams to a
@@ -367,7 +392,12 @@ def main() -> None:
     # Two tiers, two questions. One question set both, which quietly threw away
     # the whole point of the split: cheap eyes that run constantly, an expensive
     # brain that runs almost never.
-    hears_audio = bool({"mic", "av"} & _sensor_kinds(env))
+    stt = _stt_state()
+    if {"mic", "av"} & _sensor_kinds(env):
+        env.update(_ask("What should happen to what it hears?", _stt_choices(stt)))
+    # Only *raw* audio pins you to Gemini. Once it's transcribed here, the model
+    # is reading text and every backend is back on the table.
+    hears_audio = bool({"mic", "av"} & _sensor_kinds(env)) and env.get(STT_VAR) != "whisper"
     env.update(
         _ask(
             "What keeps watching?  (runs ~1x/sec, looks at every frame)",
@@ -387,6 +417,11 @@ def main() -> None:
 
     if "ollama" in (env.get(GLANCE_VAR), env.get(FOCUS_VAR)) and not ollama[0]:
         print(f"\n  Heads up: Ollama is {ollama[1]}\n  saccade will keep retrying until it's up.")
+    if env.get(STT_VAR) == "whisper" and not stt[0]:
+        print(
+            "\n  Local transcription isn't installed yet:\n\n"
+            "    uv pip install -e '.[stt]'\n"
+        )
     if env.get("SACCADE_SPEAKER") == "piper" and not piper[0]:
         print(f"\n  Piper isn't installed yet. Two commands and it can talk:\n\n{_piper_setup_commands()}")
 

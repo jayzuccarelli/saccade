@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import sys
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from saccade.backends.base import Backend
@@ -50,12 +50,17 @@ def _one_sensor(kind: str, c: Config) -> Sensor:
     if kind == "mic":
         from saccade.sensors.mic import MicSensor
 
-        return MicSensor(c.mic_index if c.mic_index >= 0 else None, c.capture_fps)
+        return MicSensor(
+            c.mic_index if c.mic_index >= 0 else None, c.capture_fps, transcriber=make_transcriber(c)
+        )
     if kind == "av":
         from saccade.sensors.av import AVSensor
 
         return AVSensor(
-            c.webcam_index, c.mic_index if c.mic_index >= 0 else None, c.capture_fps
+            c.webcam_index,
+            c.mic_index if c.mic_index >= 0 else None,
+            c.capture_fps,
+            transcriber=make_transcriber(c),
         )
     if kind == "reolink":
         from saccade.sensors.reolink import ReolinkSensor
@@ -68,6 +73,15 @@ def _one_sensor(kind: str, c: Config) -> Sensor:
     from saccade.sensors.stub import StubSensor
 
     return StubSensor(c.capture_fps)
+
+
+def make_transcriber(c: Config) -> Any:
+    """Local speech-to-text, or None to hand raw audio to the backend instead."""
+    if c.stt != "whisper":
+        return None
+    from saccade.stt import Transcriber
+
+    return Transcriber(c.stt_model)
 
 
 # Sensible per-provider defaults for each tier. Glance = cheap/fast, Focus = smart.

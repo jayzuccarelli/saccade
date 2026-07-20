@@ -29,6 +29,7 @@ anthropic = ["anthropic>=0.30.0"]
 camera = ["opencv-python-headless>=4.5.0", "pillow>=9.0.0"]
 screen = ["mss>=6.0.0", "pillow>=9.0.0"]
 audio = ["sounddevice>=0.4.5", "numpy>=1.21"]  # numpy: sounddevice's rec()/play() arrays
+stt = ["faster-whisper>=1.0"]  # local transcription; MIT, bundles ffmpeg via PyAV
 
 [dependency-groups]
 # uv run includes this group by default, so `make check` works on a bare

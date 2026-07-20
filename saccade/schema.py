@@ -28,6 +28,11 @@ class Frame:
     mime: str = "image/jpeg"
     audio: bytes | None = None  # WAV bytes for hearing; None for vision/text/stub
     audio_mime: str = "audio/wav"
+    # What was already read out of this sample before any model saw it — today a
+    # local transcript of `audio`. Every backend renders it, so hearing stops
+    # being a property of one vendor: transcribe on the machine and a text-only
+    # model can reason about what was said.
+    text: str = ""
     meta: dict[str, Any] = field(default_factory=dict)
 
 
@@ -131,3 +136,17 @@ def decision_from(raw: str, ts: float) -> Decision:
         message=d.get("message", ""),
         reasoning=d.get("reasoning", ""),
     )
+
+
+def heard_text(frames: list[Frame]) -> str:
+    """Text already extracted from these frames, formatted for a prompt.
+
+    Every backend appends this, which is the whole point: a transcript produced
+    on this machine reaches a text-only model, so hearing is no longer something
+    only one vendor's API can do. Empty string when no frame carries text, so
+    appending it unconditionally is a no-op for vision-only runs."""
+    lines = [f.text.strip() for f in frames if f.text.strip()]
+    if not lines:
+        return ""
+    body = "\n".join(f"- {line}" for line in lines)
+    return f"\n\nHeard just now (transcribed locally, oldest first):\n{body}"

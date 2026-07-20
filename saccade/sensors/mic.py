@@ -6,8 +6,15 @@ Each tick records one glance interval of mono 16kHz audio and yields it as a WAV
 Frame, the audio twin of WebcamSensor's JPEG frames. Recording itself paces the
 stream (a 1s clip takes ~1s), so there's no separate sleep.
 
-Needs the audio extra (sounddevice + PortAudio) AND a backend that accepts audio
-— Gemini today; Anthropic/Ollama are vision-only, OpenAI needs an audio model.
+Needs the audio extra (sounddevice + PortAudio). Raw audio only reaches a backend
+that accepts it — Gemini today; Anthropic/Ollama are vision-only.
+
+With a `transcriber` (SACCADE_STT=whisper) the clip is turned into text here
+instead, and the audio is **not** attached to the Frame. That's the point: the
+room is never uploaded, and the transcript reaches any backend, local included.
+Sending both would hand the audio to the vendor anyway and give up the reason to
+transcribe locally at all.
+
 sounddevice is imported lazily so the rest of the harness runs without it.
 """
 
@@ -18,6 +25,7 @@ import io
 import time
 import wave
 from collections.abc import AsyncIterator
+from typing import Any
 
 from saccade.schema import Frame
 
@@ -63,10 +71,17 @@ def wav_bytes(pcm: bytes, sample_rate: int) -> bytes:
 
 
 class MicSensor:
-    def __init__(self, index: int | None = None, fps: float = 1.0, sample_rate: int = SAMPLE_RATE):
+    def __init__(
+        self,
+        index: int | None = None,
+        fps: float = 1.0,
+        sample_rate: int = SAMPLE_RATE,
+        transcriber: Any | None = None,
+    ):
         self.index = index  # None = system default input device
         self.seconds = 1.0 / fps  # each clip spans one glance interval
         self.sample_rate = sample_rate
+        self.transcriber = transcriber  # anything with `async transcribe(wav) -> str`
 
     def _record(self) -> bytes:
         return record_pcm(self.seconds, self.sample_rate, self.index)
@@ -78,4 +93,11 @@ class MicSensor:
         require_audio()
         while True:
             pcm = await asyncio.to_thread(self._record)
-            yield Frame(ts=time.time(), audio=self._wav(pcm), audio_mime="audio/wav")
+            wav = self._wav(pcm)
+            if self.transcriber is None:
+                yield Frame(ts=time.time(), audio=wav, audio_mime="audio/wav")
+                continue
+            # Transcribed here, so the audio stays here. Most clips are silence,
+            # which comes back as "" — still a Frame, so the loop keeps its
+            # cadence and Glance sees "nothing was said" rather than nothing.
+            yield Frame(ts=time.time(), text=await self.transcriber.transcribe(wav))

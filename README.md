@@ -220,6 +220,24 @@ SACCADE_SENSOR=av SACCADE_GLANCE_BACKEND=gemini SACCADE_FOCUS_BACKEND=gemini \
   GEMINI_API_KEY=... python -m saccade
 ```
 
+**Hear without uploading the room.** Raw audio only reaches Gemini, the one
+backend that accepts it — so a microphone used to mean streaming your kitchen to
+a vendor. Transcribe locally instead and the audio never leaves; what reaches the
+model is a line of text, which *every* backend can read, including Ollama:
+
+```bash
+uv pip install -e '.[audio,stt]'
+SACCADE_SENSOR=mic SACCADE_STT=whisper \\
+  SACCADE_GLANCE_BACKEND=ollama SACCADE_FOCUS_BACKEND=ollama uv run python -m saccade
+```
+
+Uses [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (MIT), which
+bundles FFmpeg through PyAV so there's no system install on any platform.
+`SACCADE_STT_MODEL` picks the Whisper size (default `base`). When transcription
+is on, the audio is deliberately not attached to the frame — sending both would
+hand the recording to the vendor anyway and give up the reason to transcribe
+locally at all.
+
 **Watch and listen to different things at once.** Comma-separate the sensors and
 each runs at its own pace, frames interleaved. This is the one to reach for when
 the inputs are independent (watch the screen, hear the room); `av` is the one for
