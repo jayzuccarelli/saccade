@@ -29,6 +29,9 @@ from saccade.schema import Percept, Window
 if TYPE_CHECKING:
     from saccade.sensors.base import Sensor
 
+# How often to re-print an error that keeps repeating identically.
+_REPEAT_EVERY = 20
+
 # on_action may be sync (print) or async (a Speaker.say) — the loop handles both.
 Action = Callable[[str], None | Awaitable[None]]
 
@@ -121,6 +124,7 @@ async def run(
     floor = 1.0 / glance_fps if glance_fps > 0 else 0.0
     stream_done = asyncio.Event()
     focus_task: asyncio.Task[None] | None = None  # single in-flight Focus (concurrent mode)
+    last_err, repeats = "", 0
 
     async def capture() -> None:
         # Never pauses while the model thinks — keeps the buffer current.
@@ -148,8 +152,23 @@ async def run(
                         )
                 else:
                     percept = await _tick(glance, focus, memory, focus_clip_frames, on_action)
+                # A tick that worked ends the streak. Without this an intermittent
+                # fault reports once and then hides for _REPEAT_EVERY more hits,
+                # and the "still failing" count describes a streak that already
+                # recovered.
+                last_err, repeats = "", 0
             except Exception as e:  # noqa: BLE001 — resilience is the whole point here
-                print(f"[loop] skipped a tick: {type(e).__name__}: {e}")
+                # A broken backend fails identically every tick. Say it once and
+                # then stay quiet, or the one line that tells you how to fix it
+                # scrolls away under a thousand copies of itself.
+                msg = f"{type(e).__name__}: {e}"
+                if msg == last_err:
+                    repeats += 1
+                    if repeats % _REPEAT_EVERY == 0:
+                        print(f"[loop] still failing ({repeats + 1}x): {msg}")
+                else:
+                    print(f"[loop] skipped a tick: {msg}")
+                    last_err, repeats = msg, 0
             if stream_done.is_set() and capture_task.done():
                 break
             await asyncio.sleep(_next_interval(percept, floor, glance_max_interval, adaptive_cadence))

@@ -20,11 +20,17 @@ import base64
 import json
 import os
 from typing import Any
-from urllib import request
+from urllib import error, request
 
 from saccade.schema import Frame, JsonSchema
 
 _DEFAULT_HOST = "http://localhost:11434"
+
+
+class OllamaError(RuntimeError):
+    """Ollama refused, with the command that fixes it. The loop prints the
+    message verbatim, so it has to read like an instruction — a bare
+    `URLError: [Errno 61] Connection refused` on every tick tells you nothing."""
 
 
 class OllamaBackend:
@@ -59,7 +65,18 @@ class OllamaBackend:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with request.urlopen(req, timeout=self.timeout) as resp:
-            data = json.loads(resp.read())
+        try:
+            with request.urlopen(req, timeout=self.timeout) as resp:
+                data = json.loads(resp.read())
+        except error.HTTPError as e:  # subclasses URLError — catch it first
+            if e.code == 404:
+                raise OllamaError(
+                    f"Ollama has no model {self.model!r} — pull it: ollama pull {self.model}"
+                ) from e
+            raise OllamaError(f"Ollama returned HTTP {e.code}") from e
+        except error.URLError as e:
+            raise OllamaError(
+                f"Ollama isn't reachable at {self.host} — start it: ollama serve"
+            ) from e
         content: str = data.get("message", {}).get("content", "")
         return content
