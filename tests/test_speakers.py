@@ -2,6 +2,7 @@
 same way it drove a sync print, and the TTS speaker must write a real wav."""
 
 import asyncio
+import urllib.error
 import urllib.request
 import wave
 from types import SimpleNamespace
@@ -124,6 +125,31 @@ def test_ha_speaker_serves_clip_and_posts_play_media(tmp_path):
     # and that URL is actually serveable — the file is reachable over HTTP
     body = urllib.request.urlopen(posted["url"], timeout=5).read()
     assert body.startswith(b"RIFF") and body.endswith(b"\x00\x01" * 100)  # wav with our pcm
+    spk._server.shutdown()
+
+
+def test_ha_speaker_does_not_expose_a_directory_index(tmp_path):
+    """The clip dir accumulates every line saccade has ever spoken, so fetching one
+    clip by name must work while browsing the directory must not."""
+    tts = _FakeTTS(tmp_path / "utt")
+    spk = HomeAssistantSpeaker(
+        tts,
+        "http://ha.local:8123",
+        "tok",
+        "media_player.living_room",
+        serve_host="127.0.0.1",
+        serve_port=0,
+    )
+    posted = {}
+    spk._play_media = lambda url: posted.setdefault("url", url)
+    asyncio.run(spk.say("dinner is ready"))
+
+    root = posted["url"].rsplit("/", 1)[0] + "/"
+    with pytest.raises(urllib.error.HTTPError) as excinfo:
+        urllib.request.urlopen(root, timeout=5)
+    assert excinfo.value.code == 404
+    # the named clip is still reachable: we closed the index, not the door
+    assert urllib.request.urlopen(posted["url"], timeout=5).read().startswith(b"RIFF")
     spk._server.shutdown()
 
 
