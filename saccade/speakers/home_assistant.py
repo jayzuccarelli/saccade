@@ -34,6 +34,17 @@ class _QuietHandler(SimpleHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             self.close_connection = True
 
+    def list_directory(self, path: str) -> None:  # type: ignore[override]
+        """Never index the clip directory.
+
+        The served dir is `utterances/`, which accumulates every line saccade has
+        ever spoken. SimpleHTTPRequestHandler would otherwise let anyone on the LAN
+        browse and download that whole history. HA only ever fetches one clip by
+        exact name, so directory listing has no legitimate caller.
+        """
+        self.send_error(404, "No permission to list directory")
+        return None
+
     def log_message(self, *args: Any) -> None:
         pass
 

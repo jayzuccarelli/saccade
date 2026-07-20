@@ -10,14 +10,14 @@ from types import SimpleNamespace
 from saccade.devices import _label_cameras, _mac_camera_names
 
 FOUND = [(0, "1920x1080"), (1, "1920x1080")]
-NAMES = ["FaceTime HD Camera", "Jay's iPhone Camera"]
+NAMES = ["FaceTime HD Camera", "Desk iPhone Camera"]
 
 # Shape system_profiler -json emits: nested item names come back as `_name`.
 PAYLOAD = json.dumps(
     {
         "SPCameraDataType": [
             {"_name": "FaceTime HD Camera", "spcamera_model-id": "FaceTime HD Camera"},
-            {"_name": "Jay's iPhone Camera", "spcamera_model-id": "iPhone14,2"},
+            {"_name": "Desk iPhone Camera", "spcamera_model-id": "iPhone14,2"},
         ]
     }
 )
@@ -26,7 +26,7 @@ PAYLOAD = json.dumps(
 def test_names_are_paired_with_indices_in_order():
     assert _label_cameras(FOUND, NAMES) == [
         (0, "FaceTime HD Camera (1920x1080)"),
-        (1, "Jay's iPhone Camera (1920x1080)"),
+        (1, "Desk iPhone Camera (1920x1080)"),
     ]
 
 
