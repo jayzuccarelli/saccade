@@ -152,6 +152,11 @@ async def run(
                         )
                 else:
                     percept = await _tick(glance, focus, memory, focus_clip_frames, on_action)
+                # A tick that worked ends the streak. Without this an intermittent
+                # fault reports once and then hides for _REPEAT_EVERY more hits,
+                # and the "still failing" count describes a streak that already
+                # recovered.
+                last_err, repeats = "", 0
             except Exception as e:  # noqa: BLE001 — resilience is the whole point here
                 # A broken backend fails identically every tick. Say it once and
                 # then stay quiet, or the one line that tells you how to fix it
