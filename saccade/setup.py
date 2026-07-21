@@ -92,21 +92,34 @@ def _merge_sensors(picked: list[Choice]) -> tuple[dict[str, str], list[str]]:
 
 
 def _sensor_choices(devs: Devices) -> list[Choice]:
-    cams, screens, mics = devs
-    out: list[Choice] = _one_sensor_choices(devs)
-    singles = len(out)
-    if cams and mics:
-        # Which camera and which mic is a follow-up question: pairing the first
-        # of each looks reasonable until you meet a Mac whose first mic is the
-        # user's iPhone and whose first camera is the built-in webcam.
-        out.append(("A camera and a mic together: see and hear at once", {"SACCADE_SENSOR": "av"}))
-    if singles >= 2:
-        # Distinct from `av`: that fuses one camera grab and one mic clip into a
-        # single Frame describing one instant. This just runs several inputs at
-        # their own pace and interleaves them: watch the screen, hear the room.
-        out.append(("Several at once: pick which on the next screen", {"SACCADE_SENSOR": "multi"}))
-    out.append(("Nothing: scripted demo, no hardware", {"SACCADE_SENSOR": "stub"}))
-    return out
+    """Every device, one entry each, plus the way out. Nothing here describes a
+    *combination*: combining is what picking several means, not its own option."""
+    return [*_one_sensor_choices(devs), ("Nothing: scripted demo, no hardware", {"SACCADE_SENSOR": "stub"})]
+
+
+def _pick_sensors(picked: list[Choice]) -> tuple[dict[str, str], list[str], str]:
+    """Fold any combination of picked devices into one sensor config, plus the
+    entries that had to be dropped and a line explaining what we did.
+
+    Which sensor *class* runs is an implementation detail, and it used to be a
+    question: the menu offered "a camera and a mic together" next to "several at
+    once", which are two descriptions of the same intent, so the answer depended
+    on guessing our internal names. One camera and one mic fuse into AVSensor,
+    where a frame carries what it saw and heard at the same instant. Anything
+    else interleaves independent streams at their own rates. Both are just "I
+    picked these inputs"."""
+    env, dropped = _merge_sensors([c for c in picked if c[1].get("SACCADE_SENSOR") != "stub"])
+    kinds = _sensor_kinds(env)
+    if not kinds:
+        return {"SACCADE_SENSOR": "stub"}, dropped, ""
+    if kinds == {"webcam", "mic"}:
+        # Fused, not interleaved: the sound and the image describe one moment,
+        # which is the difference between "he flinched" and "he flinched at that".
+        env["SACCADE_SENSOR"] = "av"
+        return env, dropped, "camera and mic fused: each frame is one moment, seen and heard"
+    if len(kinds) > 1:
+        return env, dropped, f"{len(kinds)} inputs, each at its own rate"
+    return env, dropped, ""
 
 
 def _ask_many(question: str, choices: list[Choice]) -> list[Choice]:
@@ -163,6 +176,16 @@ def _ordered(order: list[str], first: str = "", last: str = "") -> list[str]:
     return out
 
 
+def _recommend(choices: list[Choice]) -> list[Choice]:
+    """Mark [1] as the one we'd pick.
+
+    Ordering on its own says nothing: a menu sorted by our preference looks
+    exactly like a menu sorted arbitrarily, so on the tier that decides whether
+    a camera streams all day, the pick goes to whatever happens to read first."""
+    (label, env), *rest = choices
+    return [(f"{label}  [recommended]", env), *rest]
+
+
 STT_VAR = "SACCADE_STT"
 
 
@@ -195,8 +218,14 @@ def _glance_choices(ollama: tuple[bool, str], hears_audio: bool = False) -> list
 
     Gemini takes the lead instead when the sensor captures audio, because it's the
     only backend that forwards it; anything else accepts the mic pick and then
-    silently drops the audio half."""
-    usable, tag = ollama
+    silently drops the audio half.
+
+    A stopped Ollama does *not* cost it the lead. It used to, and the effect was
+    that the machine most in need of the local pick (nothing running yet) was the
+    one steered hardest toward uploading every frame. Being one `ollama serve`
+    away is a fixable state, and the label says so; the wizard warns again at the
+    end if the pick is still down."""
+    _usable, tag = ollama
     labels = {
         "ollama": f"Ollama: runs on this machine, frames never leave it ({tag})",
         "gemini": "Gemini: hosted; every frame it looks at is uploaded (only one that hears audio)",
@@ -207,9 +236,8 @@ def _glance_choices(ollama: tuple[bool, str], hears_audio: bool = False) -> list
     order = _ordered(
         ["ollama", "gemini", "openai", "anthropic", "stub"],
         first="gemini" if hears_audio else "",
-        last="" if usable else "ollama",  # don't lead with something they can't run
     )
-    return [(labels[k], {GLANCE_VAR: k}) for k in order]
+    return _recommend([(labels[k], {GLANCE_VAR: k}) for k in order])
 
 
 def _focus_choices(ollama: tuple[bool, str]) -> list[Choice]:
@@ -229,7 +257,32 @@ def _focus_choices(ollama: tuple[bool, str]) -> list[Choice]:
     order = _ordered(
         ["gemini", "anthropic", "openai", "ollama", "stub"], last="" if usable else "ollama"
     )
-    return [(labels[k], {FOCUS_VAR: k}) for k in order]
+    return _recommend([(labels[k], {FOCUS_VAR: k}) for k in order])
+
+
+def _confirm_unusable_ollama(
+    env: dict[str, str], ollama: tuple[bool, str], hears_audio: bool
+) -> None:
+    """If a tier picked an Ollama that can't answer, make that an explicit choice.
+
+    Ollama keeps the recommendation in every unusable state, because the
+    recommendation is a claim about where frames go, not about what happens to be
+    running right now. Review pushed back that this lets "not installed" ride in
+    on a blind Enter exactly like "stopped", which is fair: those need more than
+    `ollama serve`. So it costs one keystroke instead of the lead, and declining
+    lands on a backend that actually runs rather than leaving the loop to find
+    out."""
+    if ollama[0] or "ollama" not in (env.get(GLANCE_VAR), env.get(FOCUS_VAR)):
+        return
+    print(f"\n  Ollama is {ollama[1]}")
+    if input("  Keep it and fix that after? [Y/n] ").strip().lower() in ("", "y", "yes"):
+        return
+    for var, choices in (
+        (GLANCE_VAR, _glance_choices(ollama, hears_audio)),
+        (FOCUS_VAR, _focus_choices(ollama)),
+    ):
+        if env.get(var) == "ollama":
+            env.update(_ask("What instead?", [c for c in choices if c[1][var] != "ollama"]))
 
 
 KEY_VARS = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
@@ -324,7 +377,10 @@ def _offer_install(what: str, spec: str, editable: bool = False) -> bool:
     ):
         print(f"\n  When you want it:\n\n    {' '.join(cmd)}\n")
         return False
-    print(f"\n  {' '.join(cmd)}\n")
+    # Says what's happening, not what to type. Echoing the command we're about to
+    # run reads as homework: you can't tell whether it ran or whether you're being
+    # handed it, and the installer's own output is already the progress report.
+    print(f"\n  installing {spec}...\n")
     return subprocess.run(cmd).returncode == 0
 
 
@@ -459,16 +515,16 @@ def main() -> None:
 
     ollama = _ollama_state()
     env: dict[str, str] = {}
-    env.update(_ask("What should saccade watch or hear?", _sensor_choices(devs)))
-    if env.get("SACCADE_SENSOR") == "multi":
-        picked = _ask_many("Which ones?", _one_sensor_choices(devs))
-        merged, dropped = _merge_sensors(picked)
-        for label in dropped:
-            print(f"  note: skipped {label} (only one of each kind for now)")
-        env.update(merged)
-    if env.get("SACCADE_SENSOR") == "av":
-        env.update(_ask("Which camera?", _device_choices("Camera", "SACCADE_WEBCAM_INDEX", cams)))
-        env.update(_ask("Which mic?", _device_choices("Mic", "SACCADE_MIC_INDEX", mics)))
+    picked = _ask_many(
+        "What should saccade watch and hear?  (any combination: a camera, a screen, a mic, or several)",
+        _sensor_choices(devs),
+    )
+    merged, dropped, note = _pick_sensors(picked)
+    for label in dropped:
+        print(f"  note: skipped {label} (only one of each kind for now)")
+    if note:
+        print(f"  {note}")
+    env.update(merged)
     # Two tiers, two questions. One question set both, which quietly threw away
     # the whole point of the split: cheap eyes that run constantly, an expensive
     # brain that runs almost never.
@@ -495,8 +551,7 @@ def main() -> None:
     if env.get("SACCADE_SPEAKER") in ("piper", "gemini_tts") and outs:
         env.update(_ask("Out of which speaker?", _device_choices("Output", _OUT_VAR, outs)))
 
-    if "ollama" in (env.get(GLANCE_VAR), env.get(FOCUS_VAR)) and not ollama[0]:
-        print(f"\n  Heads up: Ollama is {ollama[1]}\n  saccade will keep retrying until it's up.")
+    _confirm_unusable_ollama(env, ollama, hears_audio)
     if env.get(STT_VAR) == "whisper" and not stt[0]:
         print(
             "\n  Local transcription isn't installed yet:\n\n"
@@ -505,7 +560,7 @@ def main() -> None:
     if env.get("SACCADE_SPEAKER") == "piper" and not piper[0]:
         if _offer_install("Speaking out loud", "piper-tts"):
             voice = env.get("SACCADE_PIPER_VOICE", "en_US-lessac-medium")
-            print(f"\n  {sys.executable} -m piper.download_voices {voice}\n")
+            print(f"\n  downloading the {voice} voice...\n")
             subprocess.run([sys.executable, "-m", "piper.download_voices", voice])
         else:
             print(f"\n  The two commands, when you want them:\n\n{_piper_setup_commands()}")

@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import inspect
+import shutil
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
@@ -32,14 +33,32 @@ if TYPE_CHECKING:
 # How often to re-print an error that keeps repeating identically.
 _REPEAT_EVERY = 20
 
+# Narrowest summary column we'll accept. Below this the log stops being skimmable,
+# so a very narrow terminal wraps instead of shrinking further.
+_MIN_SUMMARY = 40
+
 # on_action may be sync (print) or async (a Speaker.say); the loop handles both.
 Action = Callable[[str], None | Awaitable[None]]
+
+
+def _fit(text: str, reserved: int, pad: bool = False) -> str:
+    """Trim `text` to what's left of the terminal after `reserved` columns.
+
+    One line per tick is the point: a fixed column you can skim for the moment
+    something changed. The width used to be hardcoded at 64, which is narrower
+    than any terminal anyone actually uses, so the summaries were cut mid-word
+    and the Focus reasoning lost its ending, which is the half that says why."""
+    width = max(_MIN_SUMMARY, shutil.get_terminal_size((100, 24)).columns - reserved)
+    out = text if len(text) <= width else text[: width - 1] + "…"
+    return f"{out:<{width}}" if pad else out
 
 
 def _log(p: Percept) -> None:
     mark = "  ‼  escalate" if p.escalate else ""
     cadence = f"  ⟳{p.next_glance_s:0.0f}s" if p.next_glance_s > 0 else ""
-    print(f"[glance] sal={p.salience:0.1f}  {p.summary[:64]:<64}{mark}{cadence}")
+    # "[glance] sal=0.1  " + the widest mark + the widest cadence.
+    summary = _fit(p.summary, len("[glance] sal=0.1  ") + 13 + 7, pad=True)
+    print(f"[glance] sal={p.salience:0.1f}  {summary}{mark}{cadence}")
 
 
 def _next_interval(percept: Percept | None, floor: float, ceiling: float, adaptive: bool) -> float:
@@ -81,7 +100,7 @@ async def _focus_act(
         decision = await focus.reason(percept, Window(frames=clip), memory)
         # Log every verdict, not just spoken ones; otherwise deliberate silence
         # (Focus judging it not worth interrupting) looks identical to a dead path.
-        print(f"[focus]  speak={str(decision.speak):5}  {decision.reasoning[:80]}")
+        print(f"[focus]  speak={str(decision.speak):5}  {_fit(decision.reasoning, 22)}")
         if decision.speak:
             memory.episodic.record(
                 "action", {"message": decision.message, "trigger": percept.summary}
@@ -178,7 +197,9 @@ async def run(
                     last_err, repeats = msg, 0
             if stream_done.is_set() and capture_task.done():
                 break
-            await asyncio.sleep(_next_interval(percept, floor, glance_max_interval, adaptive_cadence))
+            await asyncio.sleep(
+                _next_interval(percept, floor, glance_max_interval, adaptive_cadence)
+            )
     finally:
         capture_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
