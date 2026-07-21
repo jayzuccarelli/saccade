@@ -300,3 +300,48 @@ def test_two_of_one_kind_are_reported_not_silently_dropped():
 def test_a_multi_pick_that_includes_a_mic_still_leads_with_the_hearing_backend():
     assert _sensor_kinds({"SACCADE_SENSOR": "screen,mic"}) == {"screen", "mic"}
     assert _glance_choices((True, "ready"), hears_audio=True)[0][1][GLANCE_VAR] == "gemini"
+
+
+def test_wizard_flags_a_backend_whose_sdk_is_missing(monkeypatch):
+    """Picking Gemini without the extra wrote a valid .env and then failed on
+    every tick with 'No module named google', which reads as saccade being broken
+    rather than one install short."""
+    monkeypatch.setattr(setuplib, "_importable", lambda module: False)
+    env = {setuplib.GLANCE_VAR: "gemini", setuplib.FOCUS_VAR: "ollama"}
+    assert setuplib._missing_sdks(env) == ["gemini"]
+
+
+def test_wizard_is_quiet_when_the_sdk_is_there(monkeypatch):
+    monkeypatch.setattr(setuplib, "_importable", lambda module: True)
+    assert setuplib._missing_sdks({setuplib.GLANCE_VAR: "gemini"}) == []
+
+
+def test_local_only_picks_need_no_sdk(monkeypatch):
+    """Ollama talks over plain HTTP with the stdlib, so it must never be reported
+    as missing an SDK however the probe answers."""
+    monkeypatch.setattr(setuplib, "_importable", lambda module: False)
+    assert setuplib._missing_sdks({setuplib.GLANCE_VAR: "ollama", setuplib.FOCUS_VAR: "stub"}) == []
+
+
+def test_existing_key_is_offered_instead_of_demanded(monkeypatch, capsys):
+    """Don't send someone to fetch a credential they already exported."""
+    monkeypatch.setenv("GEMINI_API_KEY", "AIzaSyEXAMPLEKEY0123456789")
+    monkeypatch.setattr("builtins.input", lambda prompt="": print(prompt) or "")  # accept default
+    assert setuplib._ask_key("GEMINI_API_KEY") == "AIzaSyEXAMPLEKEY0123456789"
+    shown = capsys.readouterr().out
+    assert "Found GEMINI_API_KEY" in shown
+    assert "...6789" in shown  # recognizable
+    assert "AIzaSyEXAMPLEKEY" not in shown  # but not the key itself
+
+
+def test_declining_the_found_key_falls_back_to_typing_one(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "AIzaSyEXAMPLEKEY0123456789")
+    answers = iter(["n", "AIzaSyTYPEDBYHAND9876543"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+    assert setuplib._ask_key("GEMINI_API_KEY") == "AIzaSyTYPEDBYHAND9876543"
+
+
+def test_no_key_in_the_environment_just_asks(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr("builtins.input", lambda prompt="": "typed-key")
+    assert setuplib._ask_key("GEMINI_API_KEY") == "typed-key"

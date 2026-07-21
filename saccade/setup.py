@@ -12,6 +12,7 @@ system.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -233,6 +234,45 @@ def _focus_choices(ollama: tuple[bool, str]) -> list[Choice]:
 
 KEY_VARS = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
 
+# The import each hosted backend needs, so the wizard can notice a pick this
+# machine can't actually run.
+SDK_MODULES = {"gemini": "google.genai", "openai": "openai", "anthropic": "anthropic"}
+
+
+def _missing_sdks(env: dict[str, str]) -> list[str]:
+    """Extras the picks need but this interpreter can't import.
+
+    Picking Gemini without the extra installed used to write a perfectly valid
+    .env and then fail on every single tick with 'No module named google', which
+    reads like saccade is broken rather than one install short."""
+    missing: list[str] = []
+    kinds = [env.get(GLANCE_VAR, "stub"), env.get(FOCUS_VAR, "stub")]
+    if env.get("SACCADE_SPEAKER") == "gemini_tts":
+        kinds.append("gemini")
+    for kind in kinds:
+        module = SDK_MODULES.get(kind)
+        if module and kind not in missing and not _importable(module):
+            missing.append(kind)
+    return missing
+
+
+def _mask(secret: str) -> str:
+    """Enough to recognize a key, not enough to be one."""
+    return f"...{secret[-4:]}" if len(secret) > 8 else "(short)"
+
+
+def _ask_key(var: str) -> str:
+    """Ask for a key, but look for one first.
+
+    Sending someone to go fetch a credential they already exported is a pointless
+    errand, and the usual outcome is a second key pasted next to the working one."""
+    found = os.environ.get(var, "").strip()
+    if found:
+        ans = input(f"\nFound {var} in your environment ({_mask(found)}). Use it? [Y/n] ")
+        if ans.strip().lower() in ("", "y", "yes"):
+            return found
+    return input(f"\n{var} (blank to set it later): ").strip()
+
 _OUT_VAR = "SACCADE_AUDIO_OUT_INDEX"
 
 
@@ -355,7 +395,7 @@ def main() -> None:
     if not sys.stdin.isatty():
         print(
             "setup is interactive and stdin isn't a terminal.\n"
-            "Run `python -m saccade devices` and set the env vars yourself.",
+            f"Run `{sys.executable} -m saccade devices` and set the env vars yourself.",
             file=sys.stderr,
         )
         raise SystemExit(2)
@@ -425,8 +465,15 @@ def main() -> None:
     if env.get("SACCADE_SPEAKER") == "piper" and not piper[0]:
         print(f"\n  Piper isn't installed yet. Two commands and it can talk:\n\n{_piper_setup_commands()}")
 
+    for extra in _missing_sdks(env):
+        print(
+            f"\n  The {extra} backend needs its SDK, which isn't installed here:\n"
+            f"\n    uv pip install -e '.[{extra}]'\n"
+            f"\n  Without it every tick fails with 'No module named ...'.\n"
+        )
+
     for var in _needed_keys(env):
-        key = input(f"\n{var} (blank to set it later): ").strip()
+        key = _ask_key(var)
         if key:
             env[var] = key
 

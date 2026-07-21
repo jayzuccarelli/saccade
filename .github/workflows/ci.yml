@@ -22,12 +22,15 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ matrix.python }}
-      - run: make check
-      # `make check` runs through `uv run`, which re-resolves and ignores the
-      # committed lock, so a green gate says nothing about whether uv.lock can
-      # actually be installed. It shipped broken once: the stt extra locked an
-      # onnxruntime with no cp310 wheel, which only a user typing
-      # `uv pip install -e '.[stt]'` would ever hit. Resolve every extra against
-      # the lock, on the real matrix Python, so that can't happen again.
-      - name: uv.lock installs on this Python
+      # Before make check, not after: `make check` runs `uv run`, which may
+      # rewrite a stale lock, and then this would be checking a file CI just
+      # regenerated rather than the one that was committed.
+      #
+      # Worth checking at all because nothing else does. `uv run` re-resolves and
+      # ignores uv.lock, so a green gate says nothing about whether the committed
+      # lock installs. It shipped broken once: the stt extra pinned an onnxruntime
+      # with no cp310 wheel, which only a user running `uv pip install -e '.[stt]'`
+      # would ever hit.
+      - name: committed uv.lock resolves for every extra on this Python
         run: uv sync --locked --all-extras --dry-run
+      - run: make check
