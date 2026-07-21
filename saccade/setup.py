@@ -260,6 +260,31 @@ def _focus_choices(ollama: tuple[bool, str]) -> list[Choice]:
     return _recommend([(labels[k], {FOCUS_VAR: k}) for k in order])
 
 
+def _confirm_unusable_ollama(
+    env: dict[str, str], ollama: tuple[bool, str], hears_audio: bool
+) -> None:
+    """If a tier picked an Ollama that can't answer, make that an explicit choice.
+
+    Ollama keeps the recommendation in every unusable state, because the
+    recommendation is a claim about where frames go, not about what happens to be
+    running right now. Review pushed back that this lets "not installed" ride in
+    on a blind Enter exactly like "stopped", which is fair: those need more than
+    `ollama serve`. So it costs one keystroke instead of the lead, and declining
+    lands on a backend that actually runs rather than leaving the loop to find
+    out."""
+    if ollama[0] or "ollama" not in (env.get(GLANCE_VAR), env.get(FOCUS_VAR)):
+        return
+    print(f"\n  Ollama is {ollama[1]}")
+    if input("  Keep it and fix that after? [Y/n] ").strip().lower() in ("", "y", "yes"):
+        return
+    for var, choices in (
+        (GLANCE_VAR, _glance_choices(ollama, hears_audio)),
+        (FOCUS_VAR, _focus_choices(ollama)),
+    ):
+        if env.get(var) == "ollama":
+            env.update(_ask("What instead?", [c for c in choices if c[1][var] != "ollama"]))
+
+
 KEY_VARS = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
 
 # The import each hosted backend needs, so the wizard can notice a pick this
@@ -526,8 +551,7 @@ def main() -> None:
     if env.get("SACCADE_SPEAKER") in ("piper", "gemini_tts") and outs:
         env.update(_ask("Out of which speaker?", _device_choices("Output", _OUT_VAR, outs)))
 
-    if "ollama" in (env.get(GLANCE_VAR), env.get(FOCUS_VAR)) and not ollama[0]:
-        print(f"\n  Heads up: Ollama is {ollama[1]}\n  saccade will keep retrying until it's up.")
+    _confirm_unusable_ollama(env, ollama, hears_audio)
     if env.get(STT_VAR) == "whisper" and not stt[0]:
         print(
             "\n  Local transcription isn't installed yet:\n\n"

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from saccade import setup as setuplib
 from saccade.setup import (
+    FOCUS_VAR,
     GLANCE_VAR,
     _device_choices,
     _focus_choices,
@@ -480,3 +481,35 @@ def test_offer_install_respects_no(monkeypatch, capsys):
 
 class _Ok:
     returncode = 0
+
+
+def test_an_unusable_ollama_is_confirmed_not_assumed(monkeypatch, capsys):
+    """Review's catch: Ollama keeps the recommendation in every unusable state,
+    so 'not installed' rides in on a blind Enter exactly like 'stopped'. It stays
+    recommended (that's a claim about where frames go), but it costs a keystroke."""
+    asked = []
+    monkeypatch.setattr("builtins.input", lambda prompt="": asked.append(prompt) or "")
+    env = {GLANCE_VAR: "ollama", FOCUS_VAR: "gemini"}
+    setuplib._confirm_unusable_ollama(env, (False, "not installed; see https://ollama.com"), False)
+    assert env[GLANCE_VAR] == "ollama"  # default keeps it
+    assert any("Keep it" in p for p in asked)
+    assert "not installed" in capsys.readouterr().out
+
+
+def test_declining_an_unusable_ollama_lands_somewhere_that_runs(monkeypatch):
+    """Saying no has to go somewhere, or the confirmation is theater."""
+    answers = iter(["n", "1"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+    env = {GLANCE_VAR: "ollama", FOCUS_VAR: "gemini"}
+    setuplib._confirm_unusable_ollama(env, (False, "not installed"), False)
+    assert env[GLANCE_VAR] != "ollama"
+
+
+def test_a_usable_ollama_asks_nothing(monkeypatch):
+    def boom(prompt=""):
+        raise AssertionError("should not prompt when Ollama works")
+
+    monkeypatch.setattr("builtins.input", boom)
+    env = {GLANCE_VAR: "ollama", FOCUS_VAR: "gemini"}
+    setuplib._confirm_unusable_ollama(env, (True, "ready, 2 model(s) pulled"), False)
+    assert env[GLANCE_VAR] == "ollama"
