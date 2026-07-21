@@ -3,6 +3,7 @@ cleanly when a finite source ends. The per-tick logic is tested directly (no
 timing); the parallel capture/shutdown is tested through run()."""
 
 import asyncio
+import os
 
 from saccade import loop as looplib
 from saccade.backends.stub import StubBackend
@@ -255,3 +256,47 @@ def test_concurrent_focus_is_single_slot(tmp_path):
         )
     )
     assert starts["n"] == 1  # only one Focus ran despite three escalations
+
+
+def _percept(summary: str) -> Percept:
+    return Percept(ts=0.0, summary=summary, salience=0.1, escalate=False, next_glance_s=0.0)
+
+
+def test_the_log_uses_the_terminal_it_is_actually_in(monkeypatch, capsys):
+    """The summary column was hardcoded at 64, narrower than any terminal anyone
+    uses, so every line was cut mid-word on a real run."""
+    monkeypatch.setattr(
+        looplib.shutil, "get_terminal_size", lambda fallback=None: os.terminal_size((200, 24))
+    )
+    looplib._log(_percept("x" * 150))
+    assert "x" * 150 in capsys.readouterr().out
+
+
+def test_a_narrow_terminal_still_gets_a_readable_column(monkeypatch, capsys):
+    """Shrinking without a floor turns the log into one character per line."""
+    monkeypatch.setattr(
+        looplib.shutil, "get_terminal_size", lambda fallback=None: os.terminal_size((20, 24))
+    )
+    looplib._log(_percept("y" * 150))
+    assert "y" * 39 in capsys.readouterr().out
+
+
+def test_an_overlong_summary_is_marked_as_cut(monkeypatch, capsys):
+    """A hard slice reads as the model having stopped mid-sentence. It didn't;
+    we cut it, and the line should say so."""
+    monkeypatch.setattr(
+        looplib.shutil, "get_terminal_size", lambda fallback=None: os.terminal_size((80, 24))
+    )
+    looplib._log(_percept("z" * 300))
+    assert "…" in capsys.readouterr().out
+
+
+def test_the_escalate_marker_survives_a_long_summary(monkeypatch, capsys):
+    """The reserved columns exist so the one flag that matters isn't what gets
+    pushed off the end."""
+    monkeypatch.setattr(
+        looplib.shutil, "get_terminal_size", lambda fallback=None: os.terminal_size((80, 24))
+    )
+    looplib._log(Percept(ts=0.0, summary="w" * 300, salience=0.9, escalate=True, next_glance_s=2.0))
+    out = capsys.readouterr().out
+    assert "escalate" in out and "⟳2s" in out

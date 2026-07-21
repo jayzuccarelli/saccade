@@ -7,6 +7,7 @@ from pathlib import Path
 
 from saccade import setup as setuplib
 from saccade.setup import (
+    FOCUS_VAR,
     GLANCE_VAR,
     _device_choices,
     _focus_choices,
@@ -16,6 +17,7 @@ from saccade.setup import (
     _needed_keys,
     _notes,
     _one_sensor_choices,
+    _pick_sensors,
     _piper_setup_commands,
     _sensor_choices,
     _sensor_kinds,
@@ -46,11 +48,45 @@ def test_each_camera_is_separately_pickable():
     assert {"SACCADE_SENSOR": "webcam", "SACCADE_WEBCAM_INDEX": "1"} in envs
 
 
-def test_camera_plus_mic_offers_the_av_sensor():
-    """The av entry names no indices: which camera and which mic are asked
-    next. Defaulting to the first of each pairs a MacBook's webcam with the
-    user's iPhone microphone, which is nobody's intent."""
-    assert {"SACCADE_SENSOR": "av"} in _envs(_sensor_choices((CAMS, [], MICS)))
+def test_a_camera_and_a_mic_fuse_without_being_asked():
+    """Picking a camera and a mic means AVSensor, where a frame is what it saw
+    and heard at the same instant. The menu used to ask this directly, as "a
+    camera and a mic together" sitting next to "several at once": two phrases
+    for the same intent, so the right answer depended on guessing our internal
+    names. Combining is what picking several *means*."""
+    cam, mic = _one_sensor_choices((CAMS, [], MICS))[0], _one_sensor_choices((CAMS, [], MICS))[-1]
+    env, dropped, note = _pick_sensors([cam, mic])
+    assert env["SACCADE_SENSOR"] == "av"
+    assert env["SACCADE_WEBCAM_INDEX"] == "0" and env["SACCADE_MIC_INDEX"] == "0"
+    assert not dropped
+    assert "fused" in note
+
+
+def test_any_other_combination_interleaves():
+    """Three inputs, or two that can't fuse, run as independent streams."""
+    env, _, note = _pick_sensors(_one_sensor_choices(([], SCREENS, MICS)))
+    assert set(env["SACCADE_SENSOR"].split(",")) == {"screen", "mic"}
+    assert env["SACCADE_SCREEN_INDEX"] == "1" and env["SACCADE_MIC_INDEX"] == "0"
+    assert "own rate" in note
+
+
+def test_a_single_pick_is_just_that_sensor():
+    """One device shouldn't drag in MultiSensor or a note explaining itself."""
+    env, _, note = _pick_sensors(_one_sensor_choices(([], SCREENS, [])))
+    assert env["SACCADE_SENSOR"] == "screen"
+    assert note == ""
+
+
+def test_picking_the_demo_alongside_real_hardware_drops_the_demo():
+    """"Nothing: scripted demo" is a way out, not an input to mix in."""
+    picks = _one_sensor_choices((CAMS, [], [])) + [("Nothing", {"SACCADE_SENSOR": "stub"})]
+    env, _, _ = _pick_sensors(picks)
+    assert env["SACCADE_SENSOR"] == "webcam"
+
+
+def test_picking_only_the_demo_gives_the_stub():
+    env, _, _ = _pick_sensors([("Nothing", {"SACCADE_SENSOR": "stub"})])
+    assert env["SACCADE_SENSOR"] == "stub"
 
 
 def test_device_choices_set_only_their_own_index():
@@ -170,17 +206,43 @@ def test_glance_says_what_leaves_the_machine():
     assert "uploaded" in hosted
 
 
-def test_ollama_leads_only_when_it_can_answer():
-    """A reachable daemon earns the default slot; an installed-but-dead one
-    doesn't: picking it is connection-refused on every tick forever."""
+def test_a_stopped_ollama_still_leads_glance():
+    """It used to lose the lead when the daemon was down, which steered the
+    machine with nothing running yet (the one most in need of the local pick)
+    hardest toward uploading every frame. `ollama serve` is a fixable state, not
+    a reason to recommend a vendor."""
     dead = _glance_choices((False, "not running; start it: ollama serve"))
-    assert dead[0][1]["SACCADE_GLANCE_BACKEND"] != "ollama"
-    assert any(e["SACCADE_GLANCE_BACKEND"] == "ollama" for e in _envs(dead))
+    assert dead[0][1]["SACCADE_GLANCE_BACKEND"] == "ollama"
+    assert "recommended" in dead[0][0]
 
 
 def test_backend_tag_is_shown_in_the_label():
-    label = _glance_choices((False, "not running; start it: ollama serve"))[-1][0]
+    """Recommending a stopped daemon is only honest if the label carries the fix."""
+    label = next(
+        lbl
+        for lbl, env in _glance_choices((False, "not running; start it: ollama serve"))
+        if env["SACCADE_GLANCE_BACKEND"] == "ollama"
+    )
     assert "ollama serve" in label
+
+
+def test_both_tiers_name_their_recommendation():
+    """Ordering alone is invisible: a menu sorted by preference looks exactly like
+    one sorted arbitrarily. Jay picked Gemini off a list whose first entry we
+    intended as the recommendation and never said so."""
+    assert "recommended" in _glance_choices((True, "ready"))[0][0]
+    assert "recommended" in _focus_choices((True, "ready"))[0][0]
+    # Exactly one, or it isn't a recommendation.
+    assert sum("recommended" in lbl for lbl, _ in _glance_choices((True, "ready"))) == 1
+    assert sum("recommended" in lbl for lbl, _ in _focus_choices((True, "ready"))) == 1
+
+
+def test_the_recommendation_follows_the_audio_exception():
+    """When the sensor hears, Gemini is genuinely the pick (it's the only backend
+    that forwards audio), so the marker has to move with the ordering."""
+    heard = _glance_choices((True, "ready"), hears_audio=True)
+    assert heard[0][1][GLANCE_VAR] == "gemini"
+    assert "recommended" in heard[0][0]
 
 
 def test_no_model_option_does_not_say_stub():
@@ -271,12 +333,12 @@ def test_local_backend_speaking_still_needs_the_tts_key():
     assert _needed_keys(env) == ["GEMINI_API_KEY"]
 
 
-def test_several_at_once_is_offered_once_there_are_two_inputs():
-    assert any(e.get("SACCADE_SENSOR") == "multi" for e in _envs(_sensor_choices((CAMS, SCREENS, MICS))))
-
-
-def test_no_several_option_with_a_single_input():
-    assert not any(e.get("SACCADE_SENSOR") == "multi" for e in _envs(_sensor_choices(([], SCREENS, []))))
+def test_the_menu_lists_devices_not_combinations():
+    """Every entry is one real device plus the way out. A combination is
+    expressed by picking several, not by a menu entry describing one."""
+    envs = _envs(_sensor_choices((CAMS, SCREENS, MICS)))
+    assert not any(e.get("SACCADE_SENSOR") in ("multi", "av") for e in envs)
+    assert len(envs) == len(CAMS) + len(SCREENS) + len(MICS) + 1
 
 
 def test_merging_keeps_each_kind_and_its_index():
@@ -383,6 +445,29 @@ def test_offer_install_runs_the_command_on_yes(monkeypatch):
     assert ran["cmd"][:3] == ["uv", "pip", "install"] and ran["cmd"][-1] == ".[gemini]"
 
 
+def test_running_the_install_does_not_also_print_it(monkeypatch, capsys):
+    """Echoing the command we're about to run reads as homework: you can't tell
+    whether it ran or whether you're being handed something to type. Jay had to
+    ask which it was."""
+    monkeypatch.setattr(setuplib.shutil, "which", lambda name: "/usr/bin/uv")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "")
+    monkeypatch.setattr(setuplib.subprocess, "run", lambda cmd, **kw: _Ok())
+    setuplib._offer_install("Speaking out loud", "piper-tts")
+    shown = capsys.readouterr().out
+    assert "uv pip install" not in shown
+    assert "installing piper-tts" in shown
+
+
+def test_declining_still_hands_over_the_command(monkeypatch, capsys):
+    """The command is only useful when we're *not* running it, and then it has to
+    be complete: a bare `uv pip install` targets whatever venv the shell is in."""
+    monkeypatch.setattr(setuplib.shutil, "which", lambda name: "/usr/bin/uv")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+    assert setuplib._offer_install("Speaking out loud", "piper-tts") is False
+    shown = capsys.readouterr().out
+    assert "uv pip install" in shown and sys.executable in shown
+
+
 def test_offer_install_respects_no(monkeypatch, capsys):
     monkeypatch.setattr(setuplib.shutil, "which", lambda name: "/usr/bin/uv")
     monkeypatch.setattr("builtins.input", lambda prompt="": "n")
@@ -396,3 +481,35 @@ def test_offer_install_respects_no(monkeypatch, capsys):
 
 class _Ok:
     returncode = 0
+
+
+def test_an_unusable_ollama_is_confirmed_not_assumed(monkeypatch, capsys):
+    """Review's catch: Ollama keeps the recommendation in every unusable state,
+    so 'not installed' rides in on a blind Enter exactly like 'stopped'. It stays
+    recommended (that's a claim about where frames go), but it costs a keystroke."""
+    asked = []
+    monkeypatch.setattr("builtins.input", lambda prompt="": asked.append(prompt) or "")
+    env = {GLANCE_VAR: "ollama", FOCUS_VAR: "gemini"}
+    setuplib._confirm_unusable_ollama(env, (False, "not installed; see https://ollama.com"), False)
+    assert env[GLANCE_VAR] == "ollama"  # default keeps it
+    assert any("Keep it" in p for p in asked)
+    assert "not installed" in capsys.readouterr().out
+
+
+def test_declining_an_unusable_ollama_lands_somewhere_that_runs(monkeypatch):
+    """Saying no has to go somewhere, or the confirmation is theater."""
+    answers = iter(["n", "1"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+    env = {GLANCE_VAR: "ollama", FOCUS_VAR: "gemini"}
+    setuplib._confirm_unusable_ollama(env, (False, "not installed"), False)
+    assert env[GLANCE_VAR] != "ollama"
+
+
+def test_a_usable_ollama_asks_nothing(monkeypatch):
+    def boom(prompt=""):
+        raise AssertionError("should not prompt when Ollama works")
+
+    monkeypatch.setattr("builtins.input", boom)
+    env = {GLANCE_VAR: "ollama", FOCUS_VAR: "gemini"}
+    setuplib._confirm_unusable_ollama(env, (True, "ready, 2 model(s) pulled"), False)
+    assert env[GLANCE_VAR] == "ollama"

@@ -16,6 +16,8 @@ import sys
 import time
 from typing import TYPE_CHECKING, Any
 
+from saccade import __version__
+
 if TYPE_CHECKING:
     from saccade.backends.base import Backend
     from saccade.config import Config
@@ -239,7 +241,7 @@ async def main() -> None:
     speaker = make_speaker(c)
 
     print(
-        f"saccade v0: sensor={c.sensor} glance={c.glance_backend} "
+        f"saccade v{__version__}: sensor={c.sensor} glance={c.glance_backend} "
         f"focus={c.focus_backend} speaker={c.speaker}\n"
     )
     await looplib.run(
