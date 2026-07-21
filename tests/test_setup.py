@@ -345,3 +345,54 @@ def test_no_key_in_the_environment_just_asks(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.setattr("builtins.input", lambda prompt="": "typed-key")
     assert setuplib._ask_key("GEMINI_API_KEY") == "typed-key"
+
+
+def test_install_prefers_uv_and_names_the_interpreter(monkeypatch):
+    """An ambient `uv pip install` targets whatever venv the shell is in, which
+    is not necessarily the one running saccade. Name the interpreter explicitly."""
+    monkeypatch.setattr(setuplib.shutil, "which", lambda name: "/usr/bin/uv")
+    cmd = setuplib._install_cmd(".[gemini]", editable=True)
+    assert cmd == ["uv", "pip", "install", "--python", sys.executable, "-e", ".[gemini]"]
+
+
+def test_install_falls_back_to_pip_when_uv_is_absent(monkeypatch):
+    monkeypatch.setattr(setuplib.shutil, "which", lambda name: None)
+    monkeypatch.setattr(setuplib, "_importable", lambda module: True)
+    assert setuplib._install_cmd("piper-tts") == [sys.executable, "-m", "pip", "install", "piper-tts"]
+
+
+def test_install_gives_up_cleanly_with_no_installer(monkeypatch):
+    """A uv-made venv ships without pip, so 'neither' is a real state."""
+    monkeypatch.setattr(setuplib.shutil, "which", lambda name: None)
+    monkeypatch.setattr(setuplib, "_importable", lambda module: False)
+    assert setuplib._install_cmd("piper-tts") is None
+
+
+def test_offer_install_runs_the_command_on_yes(monkeypatch):
+    """The whole point: it installs rather than assigning homework."""
+    monkeypatch.setattr(setuplib.shutil, "which", lambda name: "/usr/bin/uv")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "")  # default is yes
+    ran = {}
+
+    def fake_run(cmd, **kw):
+        ran["cmd"] = cmd
+        return _Ok()
+
+    monkeypatch.setattr(setuplib.subprocess, "run", fake_run)
+    assert setuplib._offer_install("The gemini backend", ".[gemini]", editable=True) is True
+    assert ran["cmd"][:3] == ["uv", "pip", "install"] and ran["cmd"][-1] == ".[gemini]"
+
+
+def test_offer_install_respects_no(monkeypatch, capsys):
+    monkeypatch.setattr(setuplib.shutil, "which", lambda name: "/usr/bin/uv")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+    def must_not_run(*a, **kw):
+        raise AssertionError("declining must not install anything")
+
+    monkeypatch.setattr(setuplib.subprocess, "run", must_not_run)
+    assert setuplib._offer_install("The gemini backend", ".[gemini]") is False
+    assert "uv pip install" in capsys.readouterr().out  # still tells you how
+
+
+class _Ok:
+    returncode = 0
