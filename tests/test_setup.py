@@ -170,17 +170,43 @@ def test_glance_says_what_leaves_the_machine():
     assert "uploaded" in hosted
 
 
-def test_ollama_leads_only_when_it_can_answer():
-    """A reachable daemon earns the default slot; an installed-but-dead one
-    doesn't: picking it is connection-refused on every tick forever."""
+def test_a_stopped_ollama_still_leads_glance():
+    """It used to lose the lead when the daemon was down, which steered the
+    machine with nothing running yet (the one most in need of the local pick)
+    hardest toward uploading every frame. `ollama serve` is a fixable state, not
+    a reason to recommend a vendor."""
     dead = _glance_choices((False, "not running; start it: ollama serve"))
-    assert dead[0][1]["SACCADE_GLANCE_BACKEND"] != "ollama"
-    assert any(e["SACCADE_GLANCE_BACKEND"] == "ollama" for e in _envs(dead))
+    assert dead[0][1]["SACCADE_GLANCE_BACKEND"] == "ollama"
+    assert "recommended" in dead[0][0]
 
 
 def test_backend_tag_is_shown_in_the_label():
-    label = _glance_choices((False, "not running; start it: ollama serve"))[-1][0]
+    """Recommending a stopped daemon is only honest if the label carries the fix."""
+    label = next(
+        lbl
+        for lbl, env in _glance_choices((False, "not running; start it: ollama serve"))
+        if env["SACCADE_GLANCE_BACKEND"] == "ollama"
+    )
     assert "ollama serve" in label
+
+
+def test_both_tiers_name_their_recommendation():
+    """Ordering alone is invisible: a menu sorted by preference looks exactly like
+    one sorted arbitrarily. Jay picked Gemini off a list whose first entry we
+    intended as the recommendation and never said so."""
+    assert "recommended" in _glance_choices((True, "ready"))[0][0]
+    assert "recommended" in _focus_choices((True, "ready"))[0][0]
+    # Exactly one, or it isn't a recommendation.
+    assert sum("recommended" in lbl for lbl, _ in _glance_choices((True, "ready"))) == 1
+    assert sum("recommended" in lbl for lbl, _ in _focus_choices((True, "ready"))) == 1
+
+
+def test_the_recommendation_follows_the_audio_exception():
+    """When the sensor hears, Gemini is genuinely the pick (it's the only backend
+    that forwards audio), so the marker has to move with the ordering."""
+    heard = _glance_choices((True, "ready"), hears_audio=True)
+    assert heard[0][1][GLANCE_VAR] == "gemini"
+    assert "recommended" in heard[0][0]
 
 
 def test_no_model_option_does_not_say_stub():
@@ -381,6 +407,29 @@ def test_offer_install_runs_the_command_on_yes(monkeypatch):
     monkeypatch.setattr(setuplib.subprocess, "run", fake_run)
     assert setuplib._offer_install("The gemini backend", ".[gemini]", editable=True) is True
     assert ran["cmd"][:3] == ["uv", "pip", "install"] and ran["cmd"][-1] == ".[gemini]"
+
+
+def test_running_the_install_does_not_also_print_it(monkeypatch, capsys):
+    """Echoing the command we're about to run reads as homework: you can't tell
+    whether it ran or whether you're being handed something to type. Jay had to
+    ask which it was."""
+    monkeypatch.setattr(setuplib.shutil, "which", lambda name: "/usr/bin/uv")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "")
+    monkeypatch.setattr(setuplib.subprocess, "run", lambda cmd, **kw: _Ok())
+    setuplib._offer_install("Speaking out loud", "piper-tts")
+    shown = capsys.readouterr().out
+    assert "uv pip install" not in shown
+    assert "installing piper-tts" in shown
+
+
+def test_declining_still_hands_over_the_command(monkeypatch, capsys):
+    """The command is only useful when we're *not* running it, and then it has to
+    be complete: a bare `uv pip install` targets whatever venv the shell is in."""
+    monkeypatch.setattr(setuplib.shutil, "which", lambda name: "/usr/bin/uv")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+    assert setuplib._offer_install("Speaking out loud", "piper-tts") is False
+    shown = capsys.readouterr().out
+    assert "uv pip install" in shown and sys.executable in shown
 
 
 def test_offer_install_respects_no(monkeypatch, capsys):

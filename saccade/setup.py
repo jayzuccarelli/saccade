@@ -163,6 +163,16 @@ def _ordered(order: list[str], first: str = "", last: str = "") -> list[str]:
     return out
 
 
+def _recommend(choices: list[Choice]) -> list[Choice]:
+    """Mark [1] as the one we'd pick.
+
+    Ordering on its own says nothing: a menu sorted by our preference looks
+    exactly like a menu sorted arbitrarily, so on the tier that decides whether
+    a camera streams all day, the pick goes to whatever happens to read first."""
+    (label, env), *rest = choices
+    return [(f"{label}  [recommended]", env), *rest]
+
+
 STT_VAR = "SACCADE_STT"
 
 
@@ -195,8 +205,14 @@ def _glance_choices(ollama: tuple[bool, str], hears_audio: bool = False) -> list
 
     Gemini takes the lead instead when the sensor captures audio, because it's the
     only backend that forwards it; anything else accepts the mic pick and then
-    silently drops the audio half."""
-    usable, tag = ollama
+    silently drops the audio half.
+
+    A stopped Ollama does *not* cost it the lead. It used to, and the effect was
+    that the machine most in need of the local pick (nothing running yet) was the
+    one steered hardest toward uploading every frame. Being one `ollama serve`
+    away is a fixable state, and the label says so; the wizard warns again at the
+    end if the pick is still down."""
+    _usable, tag = ollama
     labels = {
         "ollama": f"Ollama: runs on this machine, frames never leave it ({tag})",
         "gemini": "Gemini: hosted; every frame it looks at is uploaded (only one that hears audio)",
@@ -207,9 +223,8 @@ def _glance_choices(ollama: tuple[bool, str], hears_audio: bool = False) -> list
     order = _ordered(
         ["ollama", "gemini", "openai", "anthropic", "stub"],
         first="gemini" if hears_audio else "",
-        last="" if usable else "ollama",  # don't lead with something they can't run
     )
-    return [(labels[k], {GLANCE_VAR: k}) for k in order]
+    return _recommend([(labels[k], {GLANCE_VAR: k}) for k in order])
 
 
 def _focus_choices(ollama: tuple[bool, str]) -> list[Choice]:
@@ -229,7 +244,7 @@ def _focus_choices(ollama: tuple[bool, str]) -> list[Choice]:
     order = _ordered(
         ["gemini", "anthropic", "openai", "ollama", "stub"], last="" if usable else "ollama"
     )
-    return [(labels[k], {FOCUS_VAR: k}) for k in order]
+    return _recommend([(labels[k], {FOCUS_VAR: k}) for k in order])
 
 
 KEY_VARS = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
@@ -324,7 +339,10 @@ def _offer_install(what: str, spec: str, editable: bool = False) -> bool:
     ):
         print(f"\n  When you want it:\n\n    {' '.join(cmd)}\n")
         return False
-    print(f"\n  {' '.join(cmd)}\n")
+    # Says what's happening, not what to type. Echoing the command we're about to
+    # run reads as homework: you can't tell whether it ran or whether you're being
+    # handed it, and the installer's own output is already the progress report.
+    print(f"\n  installing {spec}...\n")
     return subprocess.run(cmd).returncode == 0
 
 
@@ -505,7 +523,7 @@ def main() -> None:
     if env.get("SACCADE_SPEAKER") == "piper" and not piper[0]:
         if _offer_install("Speaking out loud", "piper-tts"):
             voice = env.get("SACCADE_PIPER_VOICE", "en_US-lessac-medium")
-            print(f"\n  {sys.executable} -m piper.download_voices {voice}\n")
+            print(f"\n  downloading the {voice} voice...\n")
             subprocess.run([sys.executable, "-m", "piper.download_voices", voice])
         else:
             print(f"\n  The two commands, when you want them:\n\n{_piper_setup_commands()}")
