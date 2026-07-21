@@ -67,10 +67,10 @@ ships:
 
     make check      # ruff + mypy --strict + pytest
 
-CI runs the same thing across 3.10/3.12 on Linux and macOS, plus a
-`uv sync --locked --all-extras` that proves the committed lockfile still
-installs (`make check` goes through `uv run`, which re-resolves and would not
-notice a broken lock).
+CI runs the same thing on Linux (3.10 and 3.12) and macOS (3.12), and first
+resolves `uv sync --locked --all-extras` to prove the committed lockfile is
+still satisfiable. `make check` goes through `uv run`, which re-resolves, so
+nothing else would notice a broken lock.
 
 Green tests are necessary, not sufficient. Before calling something done:
 
