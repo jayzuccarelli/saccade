@@ -153,6 +153,10 @@ class Config:
 
     # home_assistant speaker: play the clip on a media_player. saccade serves the
     # audio itself, so HA just fetches serve_host:serve_port (no HA www needed).
+    # Which engine synthesizes the clip before HA plays it: "piper" (local, no
+    # key) or "gemini_tts" (hosted, better voices, needs GEMINI_API_KEY). Playing
+    # on a media_player shouldn't be the one output that still forces a key.
+    ha_tts: str = os.environ.get("SACCADE_HA_TTS", "piper")
     ha_url: str = os.environ.get("SACCADE_HA_URL", "http://localhost:8123")
     ha_token: str = os.environ.get("SACCADE_HA_TOKEN", "")
     ha_entity: str = os.environ.get("SACCADE_HA_ENTITY", "")

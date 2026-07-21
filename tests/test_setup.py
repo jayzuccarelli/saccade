@@ -300,3 +300,99 @@ def test_two_of_one_kind_are_reported_not_silently_dropped():
 def test_a_multi_pick_that_includes_a_mic_still_leads_with_the_hearing_backend():
     assert _sensor_kinds({"SACCADE_SENSOR": "screen,mic"}) == {"screen", "mic"}
     assert _glance_choices((True, "ready"), hears_audio=True)[0][1][GLANCE_VAR] == "gemini"
+
+
+def test_wizard_flags_a_backend_whose_sdk_is_missing(monkeypatch):
+    """Picking Gemini without the extra wrote a valid .env and then failed on
+    every tick with 'No module named google', which reads as saccade being broken
+    rather than one install short."""
+    monkeypatch.setattr(setuplib, "_importable", lambda module: False)
+    env = {setuplib.GLANCE_VAR: "gemini", setuplib.FOCUS_VAR: "ollama"}
+    assert setuplib._missing_sdks(env) == ["gemini"]
+
+
+def test_wizard_is_quiet_when_the_sdk_is_there(monkeypatch):
+    monkeypatch.setattr(setuplib, "_importable", lambda module: True)
+    assert setuplib._missing_sdks({setuplib.GLANCE_VAR: "gemini"}) == []
+
+
+def test_local_only_picks_need_no_sdk(monkeypatch):
+    """Ollama talks over plain HTTP with the stdlib, so it must never be reported
+    as missing an SDK however the probe answers."""
+    monkeypatch.setattr(setuplib, "_importable", lambda module: False)
+    assert setuplib._missing_sdks({setuplib.GLANCE_VAR: "ollama", setuplib.FOCUS_VAR: "stub"}) == []
+
+
+def test_existing_key_is_offered_instead_of_demanded(monkeypatch, capsys):
+    """Don't send someone to fetch a credential they already exported."""
+    monkeypatch.setenv("GEMINI_API_KEY", "AIzaSyEXAMPLEKEY0123456789")
+    monkeypatch.setattr("builtins.input", lambda prompt="": print(prompt) or "")  # accept default
+    assert setuplib._ask_key("GEMINI_API_KEY") == "AIzaSyEXAMPLEKEY0123456789"
+    shown = capsys.readouterr().out
+    assert "Found GEMINI_API_KEY" in shown
+    assert "...6789" in shown  # recognizable
+    assert "AIzaSyEXAMPLEKEY" not in shown  # but not the key itself
+
+
+def test_declining_the_found_key_falls_back_to_typing_one(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "AIzaSyEXAMPLEKEY0123456789")
+    answers = iter(["n", "AIzaSyTYPEDBYHAND9876543"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+    assert setuplib._ask_key("GEMINI_API_KEY") == "AIzaSyTYPEDBYHAND9876543"
+
+
+def test_no_key_in_the_environment_just_asks(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr("builtins.input", lambda prompt="": "typed-key")
+    assert setuplib._ask_key("GEMINI_API_KEY") == "typed-key"
+
+
+def test_install_prefers_uv_and_names_the_interpreter(monkeypatch):
+    """An ambient `uv pip install` targets whatever venv the shell is in, which
+    is not necessarily the one running saccade. Name the interpreter explicitly."""
+    monkeypatch.setattr(setuplib.shutil, "which", lambda name: "/usr/bin/uv")
+    cmd = setuplib._install_cmd(".[gemini]", editable=True)
+    assert cmd == ["uv", "pip", "install", "--python", sys.executable, "-e", ".[gemini]"]
+
+
+def test_install_falls_back_to_pip_when_uv_is_absent(monkeypatch):
+    monkeypatch.setattr(setuplib.shutil, "which", lambda name: None)
+    monkeypatch.setattr(setuplib, "_importable", lambda module: True)
+    assert setuplib._install_cmd("piper-tts") == [sys.executable, "-m", "pip", "install", "piper-tts"]
+
+
+def test_install_gives_up_cleanly_with_no_installer(monkeypatch):
+    """A uv-made venv ships without pip, so 'neither' is a real state."""
+    monkeypatch.setattr(setuplib.shutil, "which", lambda name: None)
+    monkeypatch.setattr(setuplib, "_importable", lambda module: False)
+    assert setuplib._install_cmd("piper-tts") is None
+
+
+def test_offer_install_runs_the_command_on_yes(monkeypatch):
+    """The whole point: it installs rather than assigning homework."""
+    monkeypatch.setattr(setuplib.shutil, "which", lambda name: "/usr/bin/uv")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "")  # default is yes
+    ran = {}
+
+    def fake_run(cmd, **kw):
+        ran["cmd"] = cmd
+        return _Ok()
+
+    monkeypatch.setattr(setuplib.subprocess, "run", fake_run)
+    assert setuplib._offer_install("The gemini backend", ".[gemini]", editable=True) is True
+    assert ran["cmd"][:3] == ["uv", "pip", "install"] and ran["cmd"][-1] == ".[gemini]"
+
+
+def test_offer_install_respects_no(monkeypatch, capsys):
+    monkeypatch.setattr(setuplib.shutil, "which", lambda name: "/usr/bin/uv")
+    monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+    def must_not_run(*a, **kw):
+        raise AssertionError("declining must not install anything")
+
+    monkeypatch.setattr(setuplib.subprocess, "run", must_not_run)
+    assert setuplib._offer_install("The gemini backend", ".[gemini]") is False
+    assert "uv pip install" in capsys.readouterr().out  # still tells you how
+
+
+class _Ok:
+    returncode = 0

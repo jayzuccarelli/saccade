@@ -157,6 +157,13 @@ async def run(
                 # and the "still failing" count describes a streak that already
                 # recovered.
                 last_err, repeats = "", 0
+            except ModuleNotFoundError:
+                # Not a bad tick, a bad install: the SDK for the configured
+                # backend isn't here and never will be at this rate. Retrying it
+                # every second forever looks like the agent is working when it
+                # has not made a single model call. Fail out and let the CLI turn
+                # it into the install command.
+                raise
             except Exception as e:  # noqa: BLE001 (resilience is the whole point here)
                 # A broken backend fails identically every tick. Say it once and
                 # then stay quiet, or the one line that tells you how to fix it
