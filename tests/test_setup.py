@@ -16,6 +16,7 @@ from saccade.setup import (
     _needed_keys,
     _notes,
     _one_sensor_choices,
+    _pick_sensors,
     _piper_setup_commands,
     _sensor_choices,
     _sensor_kinds,
@@ -46,11 +47,45 @@ def test_each_camera_is_separately_pickable():
     assert {"SACCADE_SENSOR": "webcam", "SACCADE_WEBCAM_INDEX": "1"} in envs
 
 
-def test_camera_plus_mic_offers_the_av_sensor():
-    """The av entry names no indices: which camera and which mic are asked
-    next. Defaulting to the first of each pairs a MacBook's webcam with the
-    user's iPhone microphone, which is nobody's intent."""
-    assert {"SACCADE_SENSOR": "av"} in _envs(_sensor_choices((CAMS, [], MICS)))
+def test_a_camera_and_a_mic_fuse_without_being_asked():
+    """Picking a camera and a mic means AVSensor, where a frame is what it saw
+    and heard at the same instant. The menu used to ask this directly, as "a
+    camera and a mic together" sitting next to "several at once": two phrases
+    for the same intent, so the right answer depended on guessing our internal
+    names. Combining is what picking several *means*."""
+    cam, mic = _one_sensor_choices((CAMS, [], MICS))[0], _one_sensor_choices((CAMS, [], MICS))[-1]
+    env, dropped, note = _pick_sensors([cam, mic])
+    assert env["SACCADE_SENSOR"] == "av"
+    assert env["SACCADE_WEBCAM_INDEX"] == "0" and env["SACCADE_MIC_INDEX"] == "0"
+    assert not dropped
+    assert "fused" in note
+
+
+def test_any_other_combination_interleaves():
+    """Three inputs, or two that can't fuse, run as independent streams."""
+    env, _, note = _pick_sensors(_one_sensor_choices(([], SCREENS, MICS)))
+    assert set(env["SACCADE_SENSOR"].split(",")) == {"screen", "mic"}
+    assert env["SACCADE_SCREEN_INDEX"] == "1" and env["SACCADE_MIC_INDEX"] == "0"
+    assert "own rate" in note
+
+
+def test_a_single_pick_is_just_that_sensor():
+    """One device shouldn't drag in MultiSensor or a note explaining itself."""
+    env, _, note = _pick_sensors(_one_sensor_choices(([], SCREENS, [])))
+    assert env["SACCADE_SENSOR"] == "screen"
+    assert note == ""
+
+
+def test_picking_the_demo_alongside_real_hardware_drops_the_demo():
+    """"Nothing: scripted demo" is a way out, not an input to mix in."""
+    picks = _one_sensor_choices((CAMS, [], [])) + [("Nothing", {"SACCADE_SENSOR": "stub"})]
+    env, _, _ = _pick_sensors(picks)
+    assert env["SACCADE_SENSOR"] == "webcam"
+
+
+def test_picking_only_the_demo_gives_the_stub():
+    env, _, _ = _pick_sensors([("Nothing", {"SACCADE_SENSOR": "stub"})])
+    assert env["SACCADE_SENSOR"] == "stub"
 
 
 def test_device_choices_set_only_their_own_index():
@@ -297,12 +332,12 @@ def test_local_backend_speaking_still_needs_the_tts_key():
     assert _needed_keys(env) == ["GEMINI_API_KEY"]
 
 
-def test_several_at_once_is_offered_once_there_are_two_inputs():
-    assert any(e.get("SACCADE_SENSOR") == "multi" for e in _envs(_sensor_choices((CAMS, SCREENS, MICS))))
-
-
-def test_no_several_option_with_a_single_input():
-    assert not any(e.get("SACCADE_SENSOR") == "multi" for e in _envs(_sensor_choices(([], SCREENS, []))))
+def test_the_menu_lists_devices_not_combinations():
+    """Every entry is one real device plus the way out. A combination is
+    expressed by picking several, not by a menu entry describing one."""
+    envs = _envs(_sensor_choices((CAMS, SCREENS, MICS)))
+    assert not any(e.get("SACCADE_SENSOR") in ("multi", "av") for e in envs)
+    assert len(envs) == len(CAMS) + len(SCREENS) + len(MICS) + 1
 
 
 def test_merging_keeps_each_kind_and_its_index():

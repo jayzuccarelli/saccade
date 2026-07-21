@@ -92,21 +92,34 @@ def _merge_sensors(picked: list[Choice]) -> tuple[dict[str, str], list[str]]:
 
 
 def _sensor_choices(devs: Devices) -> list[Choice]:
-    cams, screens, mics = devs
-    out: list[Choice] = _one_sensor_choices(devs)
-    singles = len(out)
-    if cams and mics:
-        # Which camera and which mic is a follow-up question: pairing the first
-        # of each looks reasonable until you meet a Mac whose first mic is the
-        # user's iPhone and whose first camera is the built-in webcam.
-        out.append(("A camera and a mic together: see and hear at once", {"SACCADE_SENSOR": "av"}))
-    if singles >= 2:
-        # Distinct from `av`: that fuses one camera grab and one mic clip into a
-        # single Frame describing one instant. This just runs several inputs at
-        # their own pace and interleaves them: watch the screen, hear the room.
-        out.append(("Several at once: pick which on the next screen", {"SACCADE_SENSOR": "multi"}))
-    out.append(("Nothing: scripted demo, no hardware", {"SACCADE_SENSOR": "stub"}))
-    return out
+    """Every device, one entry each, plus the way out. Nothing here describes a
+    *combination*: combining is what picking several means, not its own option."""
+    return [*_one_sensor_choices(devs), ("Nothing: scripted demo, no hardware", {"SACCADE_SENSOR": "stub"})]
+
+
+def _pick_sensors(picked: list[Choice]) -> tuple[dict[str, str], list[str], str]:
+    """Fold any combination of picked devices into one sensor config, plus the
+    entries that had to be dropped and a line explaining what we did.
+
+    Which sensor *class* runs is an implementation detail, and it used to be a
+    question: the menu offered "a camera and a mic together" next to "several at
+    once", which are two descriptions of the same intent, so the answer depended
+    on guessing our internal names. One camera and one mic fuse into AVSensor,
+    where a frame carries what it saw and heard at the same instant. Anything
+    else interleaves independent streams at their own rates. Both are just "I
+    picked these inputs"."""
+    env, dropped = _merge_sensors([c for c in picked if c[1].get("SACCADE_SENSOR") != "stub"])
+    kinds = _sensor_kinds(env)
+    if not kinds:
+        return {"SACCADE_SENSOR": "stub"}, dropped, ""
+    if kinds == {"webcam", "mic"}:
+        # Fused, not interleaved: the sound and the image describe one moment,
+        # which is the difference between "he flinched" and "he flinched at that".
+        env["SACCADE_SENSOR"] = "av"
+        return env, dropped, "camera and mic fused: each frame is one moment, seen and heard"
+    if len(kinds) > 1:
+        return env, dropped, f"{len(kinds)} inputs, each at its own rate"
+    return env, dropped, ""
 
 
 def _ask_many(question: str, choices: list[Choice]) -> list[Choice]:
@@ -477,16 +490,16 @@ def main() -> None:
 
     ollama = _ollama_state()
     env: dict[str, str] = {}
-    env.update(_ask("What should saccade watch or hear?", _sensor_choices(devs)))
-    if env.get("SACCADE_SENSOR") == "multi":
-        picked = _ask_many("Which ones?", _one_sensor_choices(devs))
-        merged, dropped = _merge_sensors(picked)
-        for label in dropped:
-            print(f"  note: skipped {label} (only one of each kind for now)")
-        env.update(merged)
-    if env.get("SACCADE_SENSOR") == "av":
-        env.update(_ask("Which camera?", _device_choices("Camera", "SACCADE_WEBCAM_INDEX", cams)))
-        env.update(_ask("Which mic?", _device_choices("Mic", "SACCADE_MIC_INDEX", mics)))
+    picked = _ask_many(
+        "What should saccade watch and hear?  (any combination: a camera, a screen, a mic, or several)",
+        _sensor_choices(devs),
+    )
+    merged, dropped, note = _pick_sensors(picked)
+    for label in dropped:
+        print(f"  note: skipped {label} (only one of each kind for now)")
+    if note:
+        print(f"  {note}")
+    env.update(merged)
     # Two tiers, two questions. One question set both, which quietly threw away
     # the whole point of the split: cheap eyes that run constantly, an expensive
     # brain that runs almost never.

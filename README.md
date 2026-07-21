@@ -227,7 +227,7 @@ model is a line of text, which *every* backend can read, including Ollama:
 
 ```bash
 uv pip install -e '.[audio,stt]'
-SACCADE_SENSOR=mic SACCADE_STT=whisper \\
+SACCADE_SENSOR=mic SACCADE_STT=whisper \
   SACCADE_GLANCE_BACKEND=ollama SACCADE_FOCUS_BACKEND=ollama uv run python -m saccade
 ```
 
