@@ -12,6 +12,7 @@ system.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -233,6 +234,45 @@ def _focus_choices(ollama: tuple[bool, str]) -> list[Choice]:
 
 KEY_VARS = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
 
+# The import each hosted backend needs, so the wizard can notice a pick this
+# machine can't actually run.
+SDK_MODULES = {"gemini": "google.genai", "openai": "openai", "anthropic": "anthropic"}
+
+
+def _missing_sdks(env: dict[str, str]) -> list[str]:
+    """Extras the picks need but this interpreter can't import.
+
+    Picking Gemini without the extra installed used to write a perfectly valid
+    .env and then fail on every single tick with 'No module named google', which
+    reads like saccade is broken rather than one install short."""
+    missing: list[str] = []
+    kinds = [env.get(GLANCE_VAR, "stub"), env.get(FOCUS_VAR, "stub")]
+    if env.get("SACCADE_SPEAKER") == "gemini_tts":
+        kinds.append("gemini")
+    for kind in kinds:
+        module = SDK_MODULES.get(kind)
+        if module and kind not in missing and not _importable(module):
+            missing.append(kind)
+    return missing
+
+
+def _mask(secret: str) -> str:
+    """Enough to recognize a key, not enough to be one."""
+    return f"...{secret[-4:]}" if len(secret) > 8 else "(short)"
+
+
+def _ask_key(var: str) -> str:
+    """Ask for a key, but look for one first.
+
+    Sending someone to go fetch a credential they already exported is a pointless
+    errand, and the usual outcome is a second key pasted next to the working one."""
+    found = os.environ.get(var, "").strip()
+    if found:
+        ans = input(f"\nFound {var} in your environment ({_mask(found)}). Use it? [Y/n] ")
+        if ans.strip().lower() in ("", "y", "yes"):
+            return found
+    return input(f"\n{var} (blank to set it later): ").strip()
+
 _OUT_VAR = "SACCADE_AUDIO_OUT_INDEX"
 
 
@@ -246,6 +286,46 @@ def _importable(module: str) -> bool:
 def _piper_state() -> tuple[bool, str]:
     """Whether Piper can speak, and what to say about it."""
     return (True, "local, free, no key") if _importable("piper") else (False, "not installed")
+
+
+def _install_cmd(spec: str, editable: bool = False) -> list[str] | None:
+    """The command that installs `spec` into *this* interpreter, or None if this
+    environment has no installer we can drive.
+
+    uv first, and `--python sys.executable` explicitly: a uv-made venv ships
+    without pip, and an ambient `uv pip install` targets whatever venv the shell
+    is in, which is not necessarily the one running saccade."""
+    if shutil.which("uv"):
+        cmd = ["uv", "pip", "install", "--python", sys.executable]
+    elif _importable("pip"):
+        cmd = [sys.executable, "-m", "pip", "install"]
+    else:
+        return None
+    if editable:
+        cmd.append("-e")
+    cmd.append(spec)
+    return cmd
+
+
+def _offer_install(what: str, spec: str, editable: bool = False) -> bool:
+    """Offer to run the install rather than assigning it as homework.
+
+    The wizard already knows the exact command; printing it and quitting makes
+    the user re-derive a working shell invocation, which is where a Mac loses
+    them (no `python` on PATH, wrong `pip`, right package in the wrong venv)."""
+    cmd = _install_cmd(spec, editable)
+    if cmd is None:
+        print(f"\n  {what} needs `{spec}`, but neither uv nor pip is available here.\n")
+        return False
+    if input(f"\n{what} needs `{spec}`. Install it now? [Y/n] ").strip().lower() not in (
+        "",
+        "y",
+        "yes",
+    ):
+        print(f"\n  When you want it:\n\n    {' '.join(cmd)}\n")
+        return False
+    print(f"\n  {' '.join(cmd)}\n")
+    return subprocess.run(cmd).returncode == 0
 
 
 def _piper_setup_commands() -> str:
@@ -355,7 +435,7 @@ def main() -> None:
     if not sys.stdin.isatty():
         print(
             "setup is interactive and stdin isn't a terminal.\n"
-            "Run `python -m saccade devices` and set the env vars yourself.",
+            f"Run `{sys.executable} -m saccade devices` and set the env vars yourself.",
             file=sys.stderr,
         )
         raise SystemExit(2)
@@ -423,10 +503,19 @@ def main() -> None:
             "    uv pip install -e '.[stt]'\n"
         )
     if env.get("SACCADE_SPEAKER") == "piper" and not piper[0]:
-        print(f"\n  Piper isn't installed yet. Two commands and it can talk:\n\n{_piper_setup_commands()}")
+        if _offer_install("Speaking out loud", "piper-tts"):
+            voice = env.get("SACCADE_PIPER_VOICE", "en_US-lessac-medium")
+            print(f"\n  {sys.executable} -m piper.download_voices {voice}\n")
+            subprocess.run([sys.executable, "-m", "piper.download_voices", voice])
+        else:
+            print(f"\n  The two commands, when you want them:\n\n{_piper_setup_commands()}")
+
+    for extra in _missing_sdks(env):
+        if not _offer_install(f"The {extra} backend", f".[{extra}]", editable=True):
+            print("  Until then every tick fails with 'No module named ...'.\n")
 
     for var in _needed_keys(env):
-        key = input(f"\n{var} (blank to set it later): ").strip()
+        key = _ask_key(var)
         if key:
             env[var] = key
 

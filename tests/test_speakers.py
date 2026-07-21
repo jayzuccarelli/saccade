@@ -273,6 +273,30 @@ def test_playback_kills_a_hung_player(tmp_path, monkeypatch, capsys):
     assert "hung" in capsys.readouterr().out
 
 
+def test_ha_speaker_synthesizes_with_piper_by_default(tmp_path):
+    """Playing on a media_player shouldn't be the one output still forcing an API
+    key. The HA speaker wraps whatever synthesizes; by default that's local Piper."""
+    from saccade.__main__ import make_speaker
+    from saccade.config import Config
+
+    spk = make_speaker(Config(speaker="home_assistant", tts_dir=str(tmp_path / "utt")))
+    assert isinstance(spk, HomeAssistantSpeaker)
+    assert isinstance(spk.tts, PiperSpeaker)
+    # and it must not also play locally: HA is the thing making the sound
+    assert spk.tts.play_cmd == "" and spk.tts.out_index == -1
+
+
+def test_ha_speaker_still_takes_gemini_when_asked(tmp_path):
+    pytest.importorskip("google.genai")  # constructing GeminiTTSSpeaker needs the SDK
+    from saccade.__main__ import make_speaker
+    from saccade.config import Config
+
+    spk = make_speaker(
+        Config(speaker="home_assistant", ha_tts="gemini_tts", tts_dir=str(tmp_path / "utt"))
+    )
+    assert isinstance(spk.tts, GeminiTTSSpeaker)
+
+
 def test_lan_ip_is_an_address():
     ip = _lan_ip()
     assert ip.count(".") == 3 and all(p.isdigit() for p in ip.split("."))
