@@ -93,6 +93,11 @@ class Config:
     # perfectly looked deaf. Long enough for a phrase, short enough that the
     # answer isn't stale.
     audio_window_s: float = float(os.environ.get("SACCADE_AUDIO_WINDOW_S", "4.0"))
+
+    # Directory to dump per-tick evidence into (the exact frames and transcript
+    # the model was shown, and its raw reply); empty = off. The debugging tool
+    # for "it keeps describing something that isn't there".
+    trace_dir: str = os.environ.get("SACCADE_TRACE_DIR", "")
     # Adaptive cadence: let Glance decide how soon to look again (per its
     # next_glance_s). It only ever slows below glance_fps, never faster: quiet
     # scene = rest (up to glance_max_interval s), action = every tick. 0 to disable.

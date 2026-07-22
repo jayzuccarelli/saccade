@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `SACCADE_TRACE_DIR=trace` saves each glance's evidence to disk: the exact
+  image bytes the model was shown (post-downscale), the transcript attached, and
+  the raw reply. "Cover the lens and it still describes a man" has at least
+  three unrelated causes that look identical from the terminal; the files tell
+  them apart in one run.
+
 - The camera hands over the frame that is true *now*. OpenCV returns the oldest
   frame the driver queued and `CAP_PROP_BUFFERSIZE` is honored only by V4L2, so
   a tick that takes seconds (the `av` sensor records audio and transcribes it)
