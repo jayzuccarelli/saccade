@@ -143,21 +143,27 @@ def _device_choices(kind: str, var: str, items: list[tuple[int, str]]) -> list[C
     return [(f"{kind} {i}: {desc}", {var: str(i)}) for i, desc in items]
 
 
-def _ollama_state() -> tuple[bool, str]:
-    """Whether Ollama can actually answer, and what to say about it. Ask the
-    daemon, don't ask `which ollama`: a Mac with the binary installed and the
-    server down is the common case, and it fails as connection-refused on every
-    tick rather than at setup time, which is where you'd want to hear it."""
+def _ollama_state() -> tuple[bool, str, str]:
+    """Whether Ollama can actually answer, what's wrong in a few words, and the one
+    line that fixes it. Ask the daemon, don't ask `which ollama`: a Mac with the
+    binary installed and the server down is the common case, and it fails as
+    connection-refused on every tick rather than at setup time, which is where
+    you'd want to hear it.
+
+    Two fields, not one, because the two readers want different lengths. A menu
+    label wants "not running"; the prompt that asks you to accept that state wants
+    the command that ends it. Concatenated, the menu carried a shell command no
+    one could run from inside a menu."""
     try:
         with request.urlopen(f"{_OLLAMA_HOST}/api/tags", timeout=0.5) as resp:
             models = json.loads(resp.read()).get("models", [])
     except (OSError, ValueError):  # URLError subclasses OSError
         if shutil.which("ollama"):
-            return False, "not running; start it: ollama serve"
-        return False, "not installed; see https://ollama.com"
+            return False, "not running", "Start it with:  ollama serve"
+        return False, "not installed", "Install it from:  https://ollama.com"
     if not models:
-        return False, "running, but no models pulled: ollama pull gemma3:4b"
-    return True, f"ready, {len(models)} model(s) pulled"
+        return False, "no models pulled", "Pull one with:  ollama pull gemma3:4b"
+    return True, f"ready, {len(models)} model(s) pulled", ""
 
 
 GLANCE_VAR = "SACCADE_GLANCE_BACKEND"
@@ -211,7 +217,7 @@ def _stt_choices(stt: tuple[bool, str]) -> list[Choice]:
     ]
 
 
-def _glance_choices(ollama: tuple[bool, str], hears_audio: bool = False) -> list[Choice]:
+def _glance_choices(ollama: tuple[bool, str, str], hears_audio: bool = False) -> list[Choice]:
     """Glance is the tier that runs about once a second and looks at *every* frame,
     so this pick decides whether a camera pointed at your kitchen streams to a
     vendor all day. Local leads whenever it can actually run.
@@ -225,9 +231,9 @@ def _glance_choices(ollama: tuple[bool, str], hears_audio: bool = False) -> list
     one steered hardest toward uploading every frame. Being one `ollama serve`
     away is a fixable state, and the label says so; the wizard warns again at the
     end if the pick is still down."""
-    _usable, tag = ollama
+    _usable, state, _fix = ollama
     labels = {
-        "ollama": f"Ollama: runs on this machine, frames never leave it ({tag})",
+        "ollama": f"Ollama: runs on this machine, frames never leave it ({state})",
         "gemini": "Gemini: hosted; every frame it looks at is uploaded (only one that hears audio)",
         "openai": "OpenAI: hosted; every frame it looks at is uploaded",
         "anthropic": "Anthropic: hosted; every frame it looks at is uploaded",
@@ -240,18 +246,18 @@ def _glance_choices(ollama: tuple[bool, str], hears_audio: bool = False) -> list
     return _recommend([(labels[k], {GLANCE_VAR: k}) for k in order])
 
 
-def _focus_choices(ollama: tuple[bool, str]) -> list[Choice]:
+def _focus_choices(ollama: tuple[bool, str, str]) -> list[Choice]:
     """Focus only runs when Glance escalates, which is rare by design. That's why
     the expensive, capable model belongs here and not on the 1 Hz tier: you pay
     for it a few times a day, and the only thing it ever sees is a moment that
     already cleared the bar."""
-    usable, tag = ollama
+    usable, state, _fix = ollama
     sees = "hosted; sees only the moments Glance escalates"
     labels = {
         "gemini": f"Gemini: {sees}",
         "anthropic": f"Anthropic: {sees}",
         "openai": f"OpenAI: {sees}",
-        "ollama": f"Ollama: runs on this machine, nothing leaves it ({tag})",
+        "ollama": f"Ollama: runs on this machine, nothing leaves it ({state})",
         "stub": _NO_MODEL,
     }
     order = _ordered(
@@ -261,7 +267,7 @@ def _focus_choices(ollama: tuple[bool, str]) -> list[Choice]:
 
 
 def _confirm_unusable_ollama(
-    env: dict[str, str], ollama: tuple[bool, str], hears_audio: bool
+    env: dict[str, str], ollama: tuple[bool, str, str], hears_audio: bool
 ) -> None:
     """If a tier picked an Ollama that can't answer, make that an explicit choice.
 
@@ -271,11 +277,31 @@ def _confirm_unusable_ollama(
     on a blind Enter exactly like "stopped", which is fair: those need more than
     `ollama serve`. So it costs one keystroke instead of the lead, and declining
     lands on a backend that actually runs rather than leaving the loop to find
-    out."""
-    if ollama[0] or "ollama" not in (env.get(GLANCE_VAR), env.get(FOCUS_VAR)):
+    out.
+
+    Both answers spell out what they do. This used to read "Keep it and fix that
+    after? [Y/n]", where "it" and "that" had no antecedent on screen, the tier that
+    picked Ollama went unnamed, and pressing n announced nothing at all. A prompt
+    that can't be answered without guessing is worse than no prompt."""
+    usable, state, fix = ollama
+    tiers = [
+        name
+        for var, name in ((GLANCE_VAR, "the watcher"), (FOCUS_VAR, "the thinker"))
+        if env.get(var) == "ollama"
+    ]
+    if usable or not tiers:
         return
-    print(f"\n  Ollama is {ollama[1]}")
-    if input("  Keep it and fix that after? [Y/n] ").strip().lower() in ("", "y", "yes"):
+    # "can't answer yet: {state}", not "Ollama is {state}". The states are noun
+    # phrases as often as adjectives, and hanging them off "is" produced
+    # "Ollama is no models pulled on this machine".
+    print(
+        f"\n  You picked Ollama for {' and '.join(tiers)}, "
+        f"but it can't answer yet: {state}.\n"
+        f"  {fix}\n\n"
+        "  [Y]  keep Ollama, and do that before you run saccade\n"
+        "  [n]  pick a model that works right now\n"
+    )
+    if input("  > ").strip().lower() in ("", "y", "yes"):
         return
     for var, choices in (
         (GLANCE_VAR, _glance_choices(ollama, hears_audio)),

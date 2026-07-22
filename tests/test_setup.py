@@ -180,9 +180,9 @@ def test_each_tier_sets_only_its_own_backend():
     """The two tiers are picked separately. One question that wrote both threw away
     the entire point of the split: you could not ask for cheap local eyes and an
     expensive hosted brain, which is the whole design."""
-    for env in _envs(_glance_choices((True, "ready"))):
+    for env in _envs(_glance_choices((True, "ready", ""))):
         assert list(env) == ["SACCADE_GLANCE_BACKEND"]
-    for env in _envs(_focus_choices((True, "ready"))):
+    for env in _envs(_focus_choices((True, "ready", ""))):
         assert list(env) == ["SACCADE_FOCUS_BACKEND"]
 
 
@@ -190,15 +190,15 @@ def test_the_recommended_pair_is_local_eyes_hosted_brain():
     """Accepting both defaults should land on the architecture: a cheap model
     watching continuously on this machine, a capable hosted one that only ever
     sees what already escalated."""
-    assert _glance_choices((True, "ready"))[0][1]["SACCADE_GLANCE_BACKEND"] == "ollama"
-    assert _focus_choices((True, "ready"))[0][1]["SACCADE_FOCUS_BACKEND"] == "gemini"
+    assert _glance_choices((True, "ready", ""))[0][1]["SACCADE_GLANCE_BACKEND"] == "ollama"
+    assert _focus_choices((True, "ready", ""))[0][1]["SACCADE_FOCUS_BACKEND"] == "gemini"
 
 
 def test_glance_says_what_leaves_the_machine():
     """The privacy claim has to be legible at the point of choosing, since Glance
     is the tier that sees every frame all day."""
     labels = dict(
-        (label, env["SACCADE_GLANCE_BACKEND"]) for label, env in _glance_choices((True, "ready"))
+        (label, env["SACCADE_GLANCE_BACKEND"]) for label, env in _glance_choices((True, "ready", ""))
     )
     local = next(lbl for lbl, k in labels.items() if k == "ollama")
     hosted = next(lbl for lbl, k in labels.items() if k == "gemini")
@@ -211,36 +211,39 @@ def test_a_stopped_ollama_still_leads_glance():
     machine with nothing running yet (the one most in need of the local pick)
     hardest toward uploading every frame. `ollama serve` is a fixable state, not
     a reason to recommend a vendor."""
-    dead = _glance_choices((False, "not running; start it: ollama serve"))
+    dead = _glance_choices((False, "not running", "Start it with:  ollama serve"))
     assert dead[0][1]["SACCADE_GLANCE_BACKEND"] == "ollama"
     assert "recommended" in dead[0][0]
 
 
-def test_backend_tag_is_shown_in_the_label():
-    """Recommending a stopped daemon is only honest if the label carries the fix."""
+def test_the_label_says_the_state_and_leaves_the_shell_out_of_it():
+    """Recommending a stopped daemon is only honest if the label says it's stopped.
+    It used to append the fix too, so a menu row ended in `ollama serve`: a command
+    offered at the one moment you can't run it, since you're inside the menu."""
     label = next(
         lbl
-        for lbl, env in _glance_choices((False, "not running; start it: ollama serve"))
+        for lbl, env in _glance_choices((False, "not running", "Start it with:  ollama serve"))
         if env["SACCADE_GLANCE_BACKEND"] == "ollama"
     )
-    assert "ollama serve" in label
+    assert "not running" in label
+    assert "ollama serve" not in label
 
 
 def test_both_tiers_name_their_recommendation():
     """Ordering alone is invisible: a menu sorted by preference looks exactly like
     one sorted arbitrarily. The user picked Gemini off a list whose first entry we
     intended as the recommendation and never said so."""
-    assert "recommended" in _glance_choices((True, "ready"))[0][0]
-    assert "recommended" in _focus_choices((True, "ready"))[0][0]
+    assert "recommended" in _glance_choices((True, "ready", ""))[0][0]
+    assert "recommended" in _focus_choices((True, "ready", ""))[0][0]
     # Exactly one, or it isn't a recommendation.
-    assert sum("recommended" in lbl for lbl, _ in _glance_choices((True, "ready"))) == 1
-    assert sum("recommended" in lbl for lbl, _ in _focus_choices((True, "ready"))) == 1
+    assert sum("recommended" in lbl for lbl, _ in _glance_choices((True, "ready", ""))) == 1
+    assert sum("recommended" in lbl for lbl, _ in _focus_choices((True, "ready", ""))) == 1
 
 
 def test_the_recommendation_follows_the_audio_exception():
     """When the sensor hears, Gemini is genuinely the pick (it's the only backend
     that forwards audio), so the marker has to move with the ordering."""
-    heard = _glance_choices((True, "ready"), hears_audio=True)
+    heard = _glance_choices((True, "ready", ""), hears_audio=True)
     assert heard[0][1][GLANCE_VAR] == "gemini"
     assert "recommended" in heard[0][0]
 
@@ -248,7 +251,7 @@ def test_the_recommendation_follows_the_audio_exception():
 def test_no_model_option_does_not_say_stub():
     """ "Stub" is a test fixture's name. It meant nothing to the person reading the
     menu, who reasonably asked what it was."""
-    labels = [label for label, env in _glance_choices((True, "ready"))]
+    labels = [label for label, env in _glance_choices((True, "ready", ""))]
     assert not any(lbl.lower().startswith("stub") for lbl in labels)
     assert any("scripted demo" in lbl for lbl in labels)
 
@@ -290,18 +293,18 @@ def test_display_failure_is_still_a_note():
 def test_audio_sensor_leads_with_the_backend_that_hears():
     """Gemini is the only backend that forwards Frame.audio, so accepting the
     default with a mic selected must not hand you one that drops it."""
-    heard = _glance_choices((True, "ready"), hears_audio=True)
+    heard = _glance_choices((True, "ready", ""), hears_audio=True)
     assert heard[0][1]["SACCADE_GLANCE_BACKEND"] == "gemini"
 
 
 def test_video_only_still_leads_with_ollama():
-    seen = _glance_choices((True, "ready"), hears_audio=False)
+    seen = _glance_choices((True, "ready", ""), hears_audio=False)
     assert seen[0][1]["SACCADE_GLANCE_BACKEND"] == "ollama"
 
 
 def test_promoting_gemini_keeps_every_backend_on_the_menu():
-    heard = _glance_choices((True, "ready"), hears_audio=True)
-    assert len(heard) == len(_glance_choices((True, "ready")))
+    heard = _glance_choices((True, "ready", ""), hears_audio=True)
+    assert len(heard) == len(_glance_choices((True, "ready", "")))
     assert len(_envs(heard)) == len({e["SACCADE_GLANCE_BACKEND"] for e in _envs(heard)})
 
 
@@ -361,7 +364,7 @@ def test_two_of_one_kind_are_reported_not_silently_dropped():
 
 def test_a_multi_pick_that_includes_a_mic_still_leads_with_the_hearing_backend():
     assert _sensor_kinds({"SACCADE_SENSOR": "screen,mic"}) == {"screen", "mic"}
-    assert _glance_choices((True, "ready"), hears_audio=True)[0][1][GLANCE_VAR] == "gemini"
+    assert _glance_choices((True, "ready", ""), hears_audio=True)[0][1][GLANCE_VAR] == "gemini"
 
 
 def test_wizard_flags_a_backend_whose_sdk_is_missing(monkeypatch):
@@ -490,10 +493,47 @@ def test_an_unusable_ollama_is_confirmed_not_assumed(monkeypatch, capsys):
     asked = []
     monkeypatch.setattr("builtins.input", lambda prompt="": asked.append(prompt) or "")
     env = {GLANCE_VAR: "ollama", FOCUS_VAR: "gemini"}
-    setuplib._confirm_unusable_ollama(env, (False, "not installed; see https://ollama.com"), False)
+    setuplib._confirm_unusable_ollama(env, (False, "not installed", "Install it from:  https://ollama.com"), False)
     assert env[GLANCE_VAR] == "ollama"  # default keeps it
-    assert any("Keep it" in p for p in asked)
-    assert "not installed" in capsys.readouterr().out
+    assert [p.strip() for p in asked] == [">"]
+    out = capsys.readouterr().out
+    # Every pronoun resolves on screen: which tier picked it, what's wrong, the
+    # command that fixes it, and what each answer does. The first cut read
+    # "Keep it and fix that after? [Y/n]", which said none of those.
+    assert "the watcher" in out
+    assert "not installed" in out
+    assert "https://ollama.com" in out
+    assert "keep Ollama" in out
+    assert "works right now" in out
+
+
+def test_every_unusable_state_reads_as_a_sentence(monkeypatch, capsys):
+    """The states are noun phrases as often as adjectives. The first version hung
+    them off "is", which rendered "Ollama is no models pulled on this machine" for
+    the one state a test never rendered."""
+    monkeypatch.setattr("builtins.input", lambda prompt="": "")
+    for state, fix in (
+        ("not running", "Start it with:  ollama serve"),
+        ("not installed", "Install it from:  https://ollama.com"),
+        ("no models pulled", "Pull one with:  ollama pull gemma3:4b"),
+    ):
+        setuplib._confirm_unusable_ollama({GLANCE_VAR: "ollama"}, (False, state, fix), False)
+        out = capsys.readouterr().out
+        assert f"can't answer yet: {state}." in out
+        assert fix in out
+
+
+def test_the_prompt_names_every_tier_that_picked_it(monkeypatch, capsys):
+    """Naming one tier when both are affected sends you to fix half of it."""
+    monkeypatch.setattr("builtins.input", lambda prompt="": "")
+    setuplib._confirm_unusable_ollama(
+        {GLANCE_VAR: "ollama", FOCUS_VAR: "ollama"},
+        (False, "not running", "Start it with:  ollama serve"),
+        False,
+    )
+    out = capsys.readouterr().out
+    assert "the watcher and the thinker" in out
+    assert "ollama serve" in out
 
 
 def test_declining_an_unusable_ollama_lands_somewhere_that_runs(monkeypatch):
@@ -501,7 +541,7 @@ def test_declining_an_unusable_ollama_lands_somewhere_that_runs(monkeypatch):
     answers = iter(["n", "1"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
     env = {GLANCE_VAR: "ollama", FOCUS_VAR: "gemini"}
-    setuplib._confirm_unusable_ollama(env, (False, "not installed"), False)
+    setuplib._confirm_unusable_ollama(env, (False, "not installed", "Install it from:  https://ollama.com"), False)
     assert env[GLANCE_VAR] != "ollama"
 
 
@@ -511,5 +551,5 @@ def test_a_usable_ollama_asks_nothing(monkeypatch):
 
     monkeypatch.setattr("builtins.input", boom)
     env = {GLANCE_VAR: "ollama", FOCUS_VAR: "gemini"}
-    setuplib._confirm_unusable_ollama(env, (True, "ready, 2 model(s) pulled"), False)
+    setuplib._confirm_unusable_ollama(env, (True, "ready, 2 model(s) pulled", ""), False)
     assert env[GLANCE_VAR] == "ollama"
