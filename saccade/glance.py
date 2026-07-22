@@ -24,13 +24,29 @@ for a closer look):
 Take in the current input (an image, a short audio clip, or both) and respond \
 with ONLY a JSON object:
 {{
-  "summary": "one short line: what you notice now",
+  "summary": "who or what is there and what they are doing, in a sentence",
   "tags": ["a", "few", "labels"],
   "salience": 0.0,            // 0-1, how much this stands out as worth attention
   "escalate": false,         // true ONLY if something newly worth a closer look
-  "state_delta": "what changed vs what you recently saw",
+  "state_delta": "what changed vs what you recently saw, or 'nothing changed'",
   "next_glance_s": 1.0       // how soon the next glance is worth taking (seconds)
 }}
+
+`summary` is the only record of this moment: it is what you will be shown as \
+CONTEXT on later glances, and all the closer look gets to work from. So write \
+what someone who cannot see the input would need. "a man at a desk, typing, \
+nobody else in the room" is a summary. "man" is a label, and a run of them is \
+indistinguishable from nothing happening. Name the objects and the action, and \
+say when you are unsure rather than guessing.
+
+Describe THIS input. The CONTEXT above is there so you can tell what changed; \
+repeating its wording back is how a run of identical summaries starts, and once \
+started it hides everything that happens next.
+
+A screen may be showing this assistant's own output: lines like `[glance] sal=0.6` \
+are you, a moment ago. Reading your own log back is not an event, and neither is \
+someone typing about it. Report what the person is doing, not the text you \
+recognise on their screen.
 
 Judge change, not the static scene: someone who has simply been sitting or standing \
 there is ONE ongoing event, not a new one every second. If you already escalated an \
