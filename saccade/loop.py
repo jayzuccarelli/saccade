@@ -19,6 +19,7 @@ import asyncio
 import contextlib
 import inspect
 import shutil
+import sys
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
@@ -53,12 +54,34 @@ def _fit(text: str, reserved: int, pad: bool = False) -> str:
     return f"{out:<{width}}" if pad else out
 
 
+_live_line = False  # a quiet glance is sitting on the current row, unterminated
+
+
+def _out(text: str, live: bool = False) -> None:
+    """Print, clearing any live line first so a kept line never inherits its tail.
+
+    A quiet tick overwrites the last quiet one instead of scrolling. An hour of an
+    empty room was 3,600 lines of "a man is sitting at a desk", which buries the
+    few lines that meant something, and when a screen is one of the sensors it
+    feeds straight back in as input. Anything worth keeping (an escalation, what
+    Focus decided, an error) scrolls normally."""
+    global _live_line
+    if _live_line:
+        print("\r\033[K", end="")  # back to column 0, erase to end of line
+    # Always flushed: at ~1 Hz the cost is nothing, and an agent that runs for
+    # hours shouldn't lose its log to a block buffer when someone kills it.
+    print(text, end="\r" if live else "\n", flush=True)
+    _live_line = live
+
+
 def _log(p: Percept) -> None:
     mark = "  ‼  escalate" if p.escalate else ""
     cadence = f"  ⟳{p.next_glance_s:0.0f}s" if p.next_glance_s > 0 else ""
     # "[glance] sal=0.1  " + the widest mark + the widest cadence.
     summary = _fit(p.summary, len("[glance] sal=0.1  ") + 13 + 7, pad=True)
-    print(f"[glance] sal={p.salience:0.1f}  {summary}{mark}{cadence}")
+    line = f"[glance] sal={p.salience:0.1f}  {summary}{mark}{cadence}"
+    # Not a terminal: keep every tick, since that's a log someone will read later.
+    _out(line, live=sys.stdout.isatty() and not p.escalate)
 
 
 def _next_interval(percept: Percept | None, floor: float, ceiling: float, adaptive: bool) -> float:
@@ -100,7 +123,7 @@ async def _focus_act(
         decision = await focus.reason(percept, Window(frames=clip), memory)
         # Log every verdict, not just spoken ones; otherwise deliberate silence
         # (Focus judging it not worth interrupting) looks identical to a dead path.
-        print(f"[focus]  speak={str(decision.speak):5}  {_fit(decision.reasoning, 22)}")
+        _out(f"[focus]  speak={str(decision.speak):5}  {_fit(decision.reasoning, 22)}")
         if decision.speak:
             memory.episodic.record(
                 "action", {"message": decision.message, "trigger": percept.summary}
@@ -109,7 +132,7 @@ async def _focus_act(
             if inspect.isawaitable(result):
                 await result
     except Exception as e:  # noqa: BLE001 (a bad Focus must not kill the agent)
-        print(f"[focus]  skipped: {type(e).__name__}: {e}")
+        _out(f"[focus]  skipped: {type(e).__name__}: {e}")
 
 
 async def _tick(
@@ -191,9 +214,9 @@ async def run(
                 if msg == last_err:
                     repeats += 1
                     if repeats % _REPEAT_EVERY == 0:
-                        print(f"[loop] still failing ({repeats + 1}x): {msg}")
+                        _out(f"[loop] still failing ({repeats + 1}x): {msg}")
                 else:
-                    print(f"[loop] skipped a tick: {msg}")
+                    _out(f"[loop] skipped a tick: {msg}")
                     last_err, repeats = msg, 0
             if stream_done.is_set() and capture_task.done():
                 break

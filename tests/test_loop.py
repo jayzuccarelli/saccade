@@ -300,3 +300,37 @@ def test_the_escalate_marker_survives_a_long_summary(monkeypatch, capsys):
     looplib._log(Percept(ts=0.0, summary="w" * 300, salience=0.9, escalate=True, next_glance_s=2.0))
     out = capsys.readouterr().out
     assert "escalate" in out and "⟳2s" in out
+
+
+def test_a_quiet_glance_overwrites_instead_of_scrolling(monkeypatch, capsys):
+    """An hour of an empty room was 3,600 lines of "a man is sitting at a desk",
+    which buries the few lines that meant something and, when a screen is one of
+    the sensors, feeds straight back in as its own input."""
+    monkeypatch.setattr(looplib, "_live_line", False)
+    monkeypatch.setattr(looplib.sys.stdout, "isatty", lambda: True)
+    looplib._log(Percept(ts=0.0, summary="a man at a desk", salience=0.1, escalate=False))
+    assert capsys.readouterr().out.endswith("\r")
+
+
+def test_an_escalation_is_kept(monkeypatch, capsys):
+    """The quiet line is a status display; an escalation is the record."""
+    monkeypatch.setattr(looplib, "_live_line", False)
+    monkeypatch.setattr(looplib.sys.stdout, "isatty", lambda: True)
+    looplib._log(Percept(ts=0.0, summary="someone at the door", salience=0.9, escalate=True))
+    assert capsys.readouterr().out.endswith("\n")
+
+
+def test_piping_to_a_file_keeps_every_tick(monkeypatch, capsys):
+    """Not a terminal means it's a log someone reads later, not a live display."""
+    monkeypatch.setattr(looplib, "_live_line", False)
+    monkeypatch.setattr(looplib.sys.stdout, "isatty", lambda: False)
+    looplib._log(Percept(ts=0.0, summary="a man at a desk", salience=0.1, escalate=False))
+    assert capsys.readouterr().out.endswith("\n")
+
+
+def test_a_kept_line_clears_the_live_one(monkeypatch, capsys):
+    """Without the erase, a short Focus line inherits the tail of the padded
+    glance line it lands on top of."""
+    monkeypatch.setattr(looplib, "_live_line", True)
+    looplib._out("[focus]  speak=True")
+    assert capsys.readouterr().out.startswith("\r\033[K")

@@ -48,6 +48,20 @@ are you, a moment ago. Reading your own log back is not an event, and neither is
 someone typing about it. Report what the person is doing, not the text you \
 recognise on their screen.
 
+`salience` is a calibrated number, not a mood. Anchor it:
+
+  0.0-0.2  the room doing what it always does: someone working, reading, sitting, \
+walking through, a pet asleep. This is what most glances should score.
+  0.3-0.5  a change worth noting, not worth interrupting anyone over: they got up, \
+someone new sat down, the light changed.
+  0.6-0.8  something you would actually mention to a person standing next to you.
+  0.9-1.0  something wrong: a fall, smoke, a stranger, water where water shouldn't be.
+
+Someone at a desk working is 0.1, including the first time you see them. Being \
+unable to tell what is happening is not salience either; that is 0.1 and a summary \
+that says you can't tell. If nearly every glance lands above 0.5 the number has \
+stopped carrying information, and the closer look has nothing to go on.
+
 Judge change, not the static scene: someone who has simply been sitting or standing \
 there is ONE ongoing event, not a new one every second. If you already escalated an \
 ongoing situation (see the [escalated] lines above), do NOT escalate it again. \
