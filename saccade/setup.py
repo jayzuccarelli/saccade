@@ -25,8 +25,26 @@ from saccade.devices import _audio, _cameras, _screens
 _OLLAMA_HOST = "http://localhost:11434"
 
 # The one Ollama problem the wizard can fix by itself, named once so the check
-# and the fix can't drift apart.
+# and the fix can't drift apart. Only ever set for a local host, which is what
+# keeps `_start_ollama` from spawning a daemon on the wrong machine.
 _NOT_RUNNING = "not running"
+
+_LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]")
+
+
+def _ollama_endpoint() -> tuple[str, bool]:
+    """The host the backend will actually use, resolved the same way it resolves
+    it, and whether that's this machine.
+
+    The wizard probed localhost no matter what, so pointing `SACCADE_OLLAMA_HOST`
+    at another box reported "not running" about a server that was answering fine.
+    That was cosmetic until setup could start one; now it decides whether we spawn
+    a daemon nobody asked for on the machine running the wizard."""
+    host = os.environ.get("SACCADE_OLLAMA_HOST") or os.environ.get("OLLAMA_HOST") or _OLLAMA_HOST
+    if "://" not in host:  # OLLAMA_HOST is conventionally bare: "127.0.0.1:11434"
+        host = f"http://{host}"
+    name = host.split("://", 1)[1].split("/")[0].rsplit(":", 1)[0]
+    return host.rstrip("/"), name in _LOCAL_HOSTS
 
 # A menu entry: what the user sees, and the env vars picking it writes.
 Choice = tuple[str, dict[str, str]]
@@ -159,10 +177,15 @@ def _ollama_state() -> tuple[bool, str, str]:
     label wants "not running"; the prompt that asks you to accept that state wants
     the command that ends it. Concatenated, the menu carried a shell command no
     one could run from inside a menu."""
+    host, local = _ollama_endpoint()
     try:
-        with request.urlopen(f"{_OLLAMA_HOST}/api/tags", timeout=0.5) as resp:
+        with request.urlopen(f"{host}/api/tags", timeout=0.5) as resp:
             models = json.loads(resp.read()).get("models", [])
     except (OSError, ValueError):  # URLError subclasses OSError
+        if not local:
+            # Nothing here to install or start: that machine's problem, and
+            # saying "not installed" about it would send them to fix this one.
+            return False, f"not answering at {host}", "Check that it's running and reachable there."
         if shutil.which("ollama"):
             return False, _NOT_RUNNING, "Start it with:  ollama serve"
         return False, "not installed", "Install it from:  https://ollama.com"

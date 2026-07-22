@@ -652,3 +652,35 @@ def test_a_usable_ollama_asks_nothing(monkeypatch):
     env = {GLANCE_VAR: "ollama", FOCUS_VAR: "gemini"}
     setuplib._confirm_unusable_ollama(env, (True, "ready, 2 model(s) pulled", ""), False)
     assert env[GLANCE_VAR] == "ollama"
+
+
+def _refuse(*a, **k):
+    raise OSError("connection refused")
+
+
+def test_a_remote_ollama_is_not_this_machines_problem(monkeypatch):
+    """The wizard probed localhost no matter what SACCADE_OLLAMA_HOST said, so a
+    working Ollama on another box read as "not running" here. Harmless when the
+    fix was a printed command; now it would start a daemon on the wrong machine."""
+    monkeypatch.setenv("SACCADE_OLLAMA_HOST", "http://nas.local:11434")
+    monkeypatch.setattr(setuplib.request, "urlopen", _refuse)
+    usable, state, fix = setuplib._ollama_state()
+    assert not usable
+    assert state != setuplib._NOT_RUNNING  # the one state that triggers a start
+    assert "nas.local" in state
+    assert "ollama serve" not in fix
+
+
+def test_a_bare_ollama_host_still_resolves(monkeypatch):
+    """OLLAMA_HOST is conventionally written without a scheme."""
+    monkeypatch.delenv("SACCADE_OLLAMA_HOST", raising=False)
+    monkeypatch.setenv("OLLAMA_HOST", "127.0.0.1:11434")
+    assert setuplib._ollama_endpoint() == ("http://127.0.0.1:11434", True)
+    monkeypatch.setenv("OLLAMA_HOST", "nas.local:11434")
+    assert setuplib._ollama_endpoint() == ("http://nas.local:11434", False)
+
+
+def test_an_unset_host_is_localhost(monkeypatch):
+    monkeypatch.delenv("SACCADE_OLLAMA_HOST", raising=False)
+    monkeypatch.delenv("OLLAMA_HOST", raising=False)
+    assert setuplib._ollama_endpoint() == ("http://localhost:11434", True)
