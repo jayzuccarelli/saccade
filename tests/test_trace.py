@@ -48,11 +48,15 @@ def test_old_ticks_are_pruned(tmp_path: Path):
     assert stems == {f"{i:06d}" for i in range(8, 13)}
 
 
-def test_two_runs_do_not_share_a_directory(tmp_path: Path, monkeypatch):
-    """Numbering restarts per process, so a shared dir would interleave runs and
-    the pruner would eat the wrong files."""
+def test_two_runs_do_not_share_a_directory_even_in_the_same_second(tmp_path: Path, monkeypatch):
+    """Ctrl-C and rerun lands inside one second, and numbering restarts per
+    process, so a shared dir means the new run overwrites the old run's evidence:
+    the one failure a trace must not have. Review's catch."""
     monkeypatch.setattr("saccade.trace.time.time", lambda: 111)
     a = Trace(tmp_path)
-    monkeypatch.setattr("saccade.trace.time.time", lambda: 222)
+    _tick(a)
     b = Trace(tmp_path)
+    _tick(b)
     assert a.root != b.root
+    assert (a.root / "000001_glance.json").exists()
+    assert (b.root / "000001_glance.json").exists()

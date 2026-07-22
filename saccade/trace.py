@@ -13,6 +13,7 @@ the terminal.
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 
@@ -23,9 +24,16 @@ class Trace:
     def __init__(self, root: str | Path, keep: int = 300):
         # A fresh subdir per run: numbering restarts at 1 each process, so writing
         # into a shared dir would interleave two runs' files and the pruner would
-        # eat the wrong ones.
-        self.root = Path(root) / f"run-{int(time.time())}"
-        self.root.mkdir(parents=True, exist_ok=True)
+        # eat the wrong ones. Pid and a collision suffix on top of the timestamp,
+        # because Ctrl-C-and-rerun lands inside the same second, and losing the
+        # previous run's evidence is the one failure a trace must not have.
+        base = Path(root) / f"run-{int(time.time())}-{os.getpid()}"
+        path, i = base, 1
+        while path.exists():
+            path = Path(f"{base}-{i}")
+            i += 1
+        self.root = path
+        self.root.mkdir(parents=True)
         self.keep = keep
         self.n = 0
 
