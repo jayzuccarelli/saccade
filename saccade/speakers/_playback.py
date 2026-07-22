@@ -43,10 +43,14 @@ def _to_device(path: Path, out_index: int) -> bool:
     if wants < 1:
         print(f"warning: audio device {out_index} has no output; using the default instead")
         return False
-    if channels < wants:
-        data = np.repeat(data.reshape(-1, channels), wants // channels, axis=1)
-    elif channels > wants:
-        data = data.mean(axis=1, dtype=np.int16)  # more channels than it can take
+    if channels != wants:
+        # Down to one, then out to however many it wants: that lands on exactly
+        # `wants` for every pair, where scaling by `wants // channels` quietly
+        # didn't (2 into 3 stayed 2, and PortAudio refuses it just the same).
+        # mean() accumulates in float64 and is cast after, because averaging
+        # int16 in int16 overflows on anything loud.
+        mono = data.reshape(-1, channels).mean(axis=1) if channels > 1 else data
+        data = np.repeat(mono.reshape(-1, 1).astype(np.int16), wants, axis=1)
     sd.play(data, samplerate=rate, device=out_index)
     sd.wait()
     return True
