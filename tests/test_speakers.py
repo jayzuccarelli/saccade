@@ -322,7 +322,8 @@ class _FakeSd:
 
 
 def _play_mono(monkeypatch, tmp_path, max_out):
-    import numpy as np
+    # numpy lives in the `audio` extra, and the base harness is tested without it.
+    np = pytest.importorskip("numpy")
 
     clip = tmp_path / "clip.wav"
     with wave.open(str(clip), "wb") as w:
