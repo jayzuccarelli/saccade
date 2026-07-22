@@ -398,3 +398,26 @@ def test_a_loud_downmix_does_not_wrap_around(tmp_path, monkeypatch):
     ok, fake = _play_wav(monkeypatch, tmp_path, max_out=1, channels=2, frames=loud)
     assert ok
     assert fake.played.min() > 0, "a positive signal came out negative"
+
+
+def test_a_device_that_refuses_the_clip_falls_back(tmp_path, monkeypatch, capsys):
+    """Channels were only the first way this fails. A device that won't open at
+    Piper's 22050 Hz answers `PaMacCore err='-50'`, and an utterance we already
+    synthesized is worth handing to the OS player rather than dropping."""
+    pytest.importorskip("numpy")
+
+    class _Refuses(_FakeSd):
+        def play(self, data, samplerate, device):
+            raise RuntimeError("PaMacCore (AUHAL) err='-50'")
+
+    import numpy as np
+
+    clip = tmp_path / "clip.wav"
+    with wave.open(str(clip), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(22050)
+        w.writeframes(np.zeros(100, dtype=np.int16).tobytes())
+    monkeypatch.setitem(sys.modules, "sounddevice", _Refuses(2))
+    assert _playback._to_device(clip, 0) is False
+    assert "refused the clip" in capsys.readouterr().out

@@ -51,8 +51,17 @@ def _to_device(path: Path, out_index: int) -> bool:
         # int16 in int16 overflows on anything loud.
         mono = data.reshape(-1, channels).mean(axis=1) if channels > 1 else data
         data = np.repeat(mono.reshape(-1, 1).astype(np.int16), wants, axis=1)
-    sd.play(data, samplerate=rate, device=out_index)
-    sd.wait()
+    try:
+        sd.play(data, samplerate=rate, device=out_index)
+        sd.wait()
+    except Exception as e:  # noqa: BLE001 (whatever PortAudio didn't like, we have a plan B)
+        # Channels were only the first way this fails. A device that won't open at
+        # Piper's 22050 Hz answers with `PaMacCore err='-50'`, and there are more
+        # where that came from. The OS player resamples and picks a device without
+        # being told how, so an utterance we already synthesized is worth handing
+        # to it rather than dropping on the floor.
+        print(f"warning: audio device {out_index} refused the clip ({e}); using the default")
+        return False
     return True
 
 
