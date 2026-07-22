@@ -14,20 +14,28 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shutil
 import time
 from pathlib import Path
 
 from saccade.schema import Frame
 
+# Exactly the names this module mints, and nothing else: the sweep below deletes
+# whatever matches, so a loose pattern would eat a user's own files for the crime
+# of living in the trace dir.
+_RUN_DIR = re.compile(r"run-(\d+)-\d+(-\d+)?")
+
 
 class Trace:
-    def __init__(self, root: str | Path, keep: int = 300):
+    def __init__(self, root: str | Path, keep: int = 300, keep_runs: int = 3):
         # A fresh subdir per run: numbering restarts at 1 each process, so writing
         # into a shared dir would interleave two runs' files and the pruner would
         # eat the wrong ones. Pid and a collision suffix on top of the timestamp,
         # because Ctrl-C-and-rerun lands inside the same second, and losing the
         # previous run's evidence is the one failure a trace must not have.
-        base = Path(root) / f"run-{int(time.time())}-{os.getpid()}"
+        parent = Path(root)
+        base = parent / f"run-{int(time.time())}-{os.getpid()}"
         path, i = base, 1
         while path.exists():
             path = Path(f"{base}-{i}")
@@ -36,6 +44,15 @@ class Trace:
         self.root.mkdir(parents=True)
         self.keep = keep
         self.n = 0
+        # The per-run cap bounds one run; this bounds the habit. A debugging
+        # afternoon is a dozen Ctrl-C-and-reruns, each leaving up to `keep` ticks
+        # behind, and nobody returns to sweep them.
+        runs = sorted(
+            (d for d in parent.iterdir() if d.is_dir() and _RUN_DIR.fullmatch(d.name)),
+            key=lambda d: int(_RUN_DIR.fullmatch(d.name).group(1)),  # type: ignore[union-attr]
+        )
+        for stale in runs[:-keep_runs]:
+            shutil.rmtree(stale, ignore_errors=True)
 
     def record(self, role: str, frames: list[Frame], reply: str) -> None:
         """One tick's evidence: the frames as sent, and the answer as received."""

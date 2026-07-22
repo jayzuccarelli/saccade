@@ -60,3 +60,31 @@ def test_two_runs_do_not_share_a_directory_even_in_the_same_second(tmp_path: Pat
     assert a.root != b.root
     assert (a.root / "000001_glance.json").exists()
     assert (b.root / "000001_glance.json").exists()
+
+
+def test_old_runs_are_swept_when_a_new_one_starts(tmp_path: Path, monkeypatch):
+    """The per-run cap bounds one run; this bounds the habit. A debugging
+    afternoon is a dozen Ctrl-C-and-reruns, each leaving up to `keep` ticks
+    behind, and nobody comes back to sweep them."""
+    times = iter([100, 200, 300, 400])
+    monkeypatch.setattr("saccade.trace.time.time", lambda: next(times))
+    a = Trace(tmp_path)
+    _tick(a)
+    b = Trace(tmp_path)
+    c = Trace(tmp_path)
+    d = Trace(tmp_path)
+    assert not a.root.exists()
+    assert b.root.exists() and c.root.exists() and d.root.exists()
+
+
+def test_the_sweep_only_eats_what_the_trace_wrote(tmp_path: Path, monkeypatch):
+    """rmtree on a name pattern had better be a strict pattern: a user's own
+    files don't become deletable by living in the trace dir."""
+    (tmp_path / "run-keepsake").mkdir()
+    (tmp_path / "notes.txt").write_text("mine")
+    times = iter([100, 200, 300, 400])
+    monkeypatch.setattr("saccade.trace.time.time", lambda: next(times))
+    for _ in range(4):
+        Trace(tmp_path)
+    assert (tmp_path / "run-keepsake").exists()
+    assert (tmp_path / "notes.txt").read_text() == "mine"
