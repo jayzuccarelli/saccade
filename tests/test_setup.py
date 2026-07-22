@@ -5,6 +5,8 @@ contract worth pinning, with the device lists faked."""
 import sys
 from pathlib import Path
 
+import pytest
+
 from saccade import setup as setuplib
 from saccade.setup import (
     FOCUS_VAR,
@@ -256,23 +258,77 @@ def test_no_model_option_does_not_say_stub():
     assert any("scripted demo" in lbl for lbl in labels)
 
 
-def test_backup_is_env_bak_not_env_env_bak(tmp_path: Path, monkeypatch):
+def test_backup_is_env_bak_not_env_env_bak(tmp_path: Path):
     """Regression: Path('.env').with_suffix('.env.bak') gives '.env.env.bak':
     a dotfile is all stem, so there's no suffix to replace."""
     path = tmp_path / ".env"
     path.write_text("SACCADE_SENSOR=stub\n")
-    monkeypatch.setattr("builtins.input", lambda _: "y")
-    assert _write_env(path, {"SACCADE_SENSOR": "webcam"})
+    _write_env(path, {"SACCADE_SENSOR": "webcam"})
     assert (tmp_path / ".env.bak").read_text() == "SACCADE_SENSOR=stub\n"
     assert not (tmp_path / ".env.env.bak").exists()
 
 
 def test_write_env_emits_loadable_lines(tmp_path: Path):
     path = tmp_path / ".env"
-    assert _write_env(path, {"SACCADE_SENSOR": "webcam", "SACCADE_WEBCAM_INDEX": "1"})
+    _write_env(path, {"SACCADE_SENSOR": "webcam", "SACCADE_WEBCAM_INDEX": "1"})
     body = path.read_text()
     assert "SACCADE_SENSOR=webcam" in body
     assert "SACCADE_WEBCAM_INDEX=1" in body
+
+
+def test_an_existing_env_is_merged_not_replaced(tmp_path: Path):
+    """The wizard sets a handful of vars; a real .env holds keys, comments and
+    tuning it never asked about. Overwriting the file to change three lines threw
+    all of that away, which is why it had to stop and ask first."""
+    path = tmp_path / ".env"
+    path.write_text(
+        "# my notes\n"
+        "GEMINI_API_KEY=secret\n"
+        "SACCADE_SENSOR=stub\n"
+        "\n"
+        "SACCADE_GLANCE_INTERVAL_S=3\n"
+    )
+    _write_env(path, {"SACCADE_SENSOR": "webcam", "SACCADE_SPEAKER": "piper"})
+    assert path.read_text() == (
+        "# my notes\n"
+        "GEMINI_API_KEY=secret\n"
+        "SACCADE_SENSOR=webcam\n"
+        "\n"
+        "SACCADE_GLANCE_INTERVAL_S=3\n"
+        "\n"
+        "SACCADE_SPEAKER=piper\n"
+    )
+
+
+def test_merging_asks_nothing(tmp_path: Path, monkeypatch):
+    """The old prompt's kind answer ([N]) discarded the entire interview and told
+    the user to paste their picks in by hand. Nothing here needs an answer."""
+    path = tmp_path / ".env"
+    path.write_text("SACCADE_SENSOR=stub\n")
+    monkeypatch.setattr(
+        "builtins.input", lambda *_: pytest.fail("_write_env asked something")
+    )
+    _write_env(path, {"SACCADE_SENSOR": "webcam"})
+    assert "SACCADE_SENSOR=webcam" in path.read_text()
+
+
+def test_a_stale_duplicate_does_not_survive_the_merge(tmp_path: Path):
+    """_apply_dotenv keeps the first value it sees, so a second line for the same
+    key was already inert. Leaving it would put a value in the file that
+    contradicts the one saccade actually loads."""
+    path = tmp_path / ".env"
+    path.write_text("SACCADE_SENSOR=stub\nSACCADE_SENSOR=screen\n")
+    _write_env(path, {"SACCADE_SENSOR": "webcam"})
+    assert path.read_text() == "SACCADE_SENSOR=webcam\n"
+
+
+def test_a_sourceable_env_stays_sourceable(tmp_path: Path):
+    """`export FOO=1` is a line you can `source`. Rewriting the value shouldn't
+    quietly cost the user that."""
+    path = tmp_path / ".env"
+    path.write_text("export SACCADE_SENSOR=stub\n")
+    _write_env(path, {"SACCADE_SENSOR": "webcam"})
+    assert path.read_text() == "export SACCADE_SENSOR=webcam\n"
 
 
 def test_portaudio_hint_survives_the_note_filter():
@@ -517,6 +573,9 @@ def test_every_unusable_state_reads_as_a_sentence(monkeypatch, capsys):
         ("not installed", "Install it from:  https://ollama.com"),
         ("no models pulled", "Pull one with:  ollama pull gemma3:4b"),
     ):
+        # Stands in for a start that didn't take, which is the only way the
+        # "not running" copy still reaches a screen.
+        monkeypatch.setattr(setuplib, "_start_ollama", lambda s=state, f=fix: (False, s, f))
         setuplib._confirm_unusable_ollama({GLANCE_VAR: "ollama"}, (False, state, fix), False)
         out = capsys.readouterr().out
         assert f"can't answer yet: {state}." in out
@@ -528,12 +587,52 @@ def test_the_prompt_names_every_tier_that_picked_it(monkeypatch, capsys):
     monkeypatch.setattr("builtins.input", lambda prompt="": "")
     setuplib._confirm_unusable_ollama(
         {GLANCE_VAR: "ollama", FOCUS_VAR: "ollama"},
-        (False, "not running", "Start it with:  ollama serve"),
+        (False, "no models pulled", "Pull one with:  ollama pull gemma3:4b"),
         False,
     )
     out = capsys.readouterr().out
     assert "the watcher and the thinker" in out
-    assert "ollama serve" in out
+    assert "ollama pull gemma3:4b" in out
+
+
+def test_a_stopped_ollama_is_started_not_assigned(monkeypatch, capsys):
+    """The one failure the wizard can end by itself. Printing `ollama serve` sent
+    the user to a second terminal to run a command we can run right here, which is
+    the homework `_offer_install` already exists to stop handing out."""
+    started = []
+    monkeypatch.setattr(
+        setuplib,
+        "_start_ollama",
+        lambda: started.append(True) or (True, "ready, 1 model(s) pulled", ""),
+    )
+    monkeypatch.setattr("builtins.input", lambda *_: pytest.fail("nothing to ask, it's running"))
+    env = {GLANCE_VAR: "ollama"}
+    setuplib._confirm_unusable_ollama(env, (False, "not running", "Start it with:  ollama serve"), False)
+    assert started == [True]
+    assert env[GLANCE_VAR] == "ollama"
+
+
+def test_nobody_else_gets_a_daemon_they_did_not_ask_for(monkeypatch):
+    """Ollama being down is only the wizard's business once a tier has picked it.
+    Starting a server for someone who chose Gemini is a side effect, not setup."""
+    monkeypatch.setattr(setuplib, "_start_ollama", lambda: pytest.fail("started uninvited"))
+    setuplib._confirm_unusable_ollama(
+        {GLANCE_VAR: "gemini", FOCUS_VAR: "gemini"},
+        (False, "not running", "Start it with:  ollama serve"),
+        False,
+    )
+
+
+def test_a_start_that_did_not_take_says_so(monkeypatch, capsys):
+    """Falling back to "Start it with: ollama serve" right after trying exactly
+    that reads as a wizard that wasn't watching its own subprocess."""
+    monkeypatch.setattr(setuplib.subprocess, "Popen", lambda *a, **k: None)
+    monkeypatch.setattr(setuplib.time, "sleep", lambda _: None)
+    monkeypatch.setattr(setuplib, "_ollama_state", lambda: (False, "not running", "Start it with:  ollama serve"))
+    usable, state, fix = setuplib._start_ollama()
+    assert not usable
+    assert "didn't work" in fix
+    assert "is up" not in capsys.readouterr().out
 
 
 def test_declining_an_unusable_ollama_lands_somewhere_that_runs(monkeypatch):

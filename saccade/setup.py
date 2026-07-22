@@ -16,12 +16,17 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from urllib import request
 
 from saccade.devices import _audio, _cameras, _screens
 
 _OLLAMA_HOST = "http://localhost:11434"
+
+# The one Ollama problem the wizard can fix by itself, named once so the check
+# and the fix can't drift apart.
+_NOT_RUNNING = "not running"
 
 # A menu entry: what the user sees, and the env vars picking it writes.
 Choice = tuple[str, dict[str, str]]
@@ -159,7 +164,7 @@ def _ollama_state() -> tuple[bool, str, str]:
             models = json.loads(resp.read()).get("models", [])
     except (OSError, ValueError):  # URLError subclasses OSError
         if shutil.which("ollama"):
-            return False, "not running", "Start it with:  ollama serve"
+            return False, _NOT_RUNNING, "Start it with:  ollama serve"
         return False, "not installed", "Install it from:  https://ollama.com"
     if not models:
         return False, "no models pulled", "Pull one with:  ollama pull gemma3:4b"
@@ -266,6 +271,45 @@ def _focus_choices(ollama: tuple[bool, str, str]) -> list[Choice]:
     return _recommend([(labels[k], {FOCUS_VAR: k}) for k in order])
 
 
+def _start_ollama() -> tuple[bool, str, str]:
+    """Start the daemon instead of telling someone to, and return what it does next.
+
+    A stopped Ollama is the only one of the three failures the wizard can end by
+    itself: the binary is already there, and nothing is answering on the port, so
+    there's no server to collide with (a Mac running Ollama.app would already be
+    replying). Handing back `ollama serve` made the user open a second terminal to
+    run a command we could run here, which is the same homework `_offer_install`
+    exists to stop assigning.
+
+    Detached, because it has to outlive the wizard: the whole point is that saccade
+    can reach it afterwards. Polled rather than assumed, because "the process
+    spawned" and "the daemon answers" are different claims, and only the second one
+    is the one worth printing."""
+    # Whatever comes back, not the advice `_ollama_state` gives a machine that
+    # hasn't tried yet: "Start it with: ollama serve", printed immediately after
+    # doing exactly that and failing, reads as a wizard that isn't watching.
+    failed = (False, _NOT_RUNNING, "Starting it here didn't work; try  ollama serve  yourself.")
+    print("\n  Ollama is installed but not running. Starting it...")
+    try:
+        subprocess.Popen(
+            ["ollama", "serve"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError:
+        return failed
+    for _ in range(20):
+        time.sleep(0.25)
+        usable, state, fix = _ollama_state()
+        if state == _NOT_RUNNING:
+            continue
+        if usable:
+            print("  Ollama is up. It stays up after setup; `pkill ollama` stops it.")
+        return usable, state, fix
+    return failed
+
+
 def _confirm_unusable_ollama(
     env: dict[str, str], ollama: tuple[bool, str, str], hears_audio: bool
 ) -> None:
@@ -291,6 +335,13 @@ def _confirm_unusable_ollama(
     ]
     if usable or not tiers:
         return
+    if state == _NOT_RUNNING:
+        # Only now, once a tier has actually picked it: starting a daemon nobody
+        # asked for is a side effect, starting the one they just chose is setup.
+        ollama = _start_ollama()
+        usable, state, fix = ollama
+        if usable:
+            return
     # "can't answer yet: {state}", not "Ollama is {state}". The states are noun
     # phrases as often as adjectives, and hanging them off "is" produced
     # "Ollama is no models pulled on this machine".
@@ -493,24 +544,41 @@ def _needed_keys(env: dict[str, str]) -> list[str]:
     return needed
 
 
-def _write_env(path: Path, env: dict[str, str]) -> bool:
-    """Write env as KEY=value lines. Backs up an existing file rather than
-    silently clobbering someone's hand-tuned config."""
-    if path.exists():
-        ans = input(f"\n{path} already exists. Overwrite? [y/N] ").strip().lower()
-        if ans != "y":
-            print("\nLeft it alone. Your picks, to paste in yourself:\n")
-            for k, v in env.items():
-                print(f"  {k}={v}")
-            return False
+def _write_env(path: Path, env: dict[str, str]) -> None:
+    """Write the picks into `path`, rewriting only the vars the wizard just set.
+
+    Merge, don't ask. This used to prompt "Overwrite? [y/N]", and both answers
+    threw away something the user wanted: y dropped every hand-added line in the
+    file, N dropped the whole interview and printed the picks back to paste in by
+    hand. The safe-looking default was the destructive one, discarding the dozen
+    questions they had just answered. There's nothing to ask about: the wizard
+    owns the vars it set and nothing else, so those lines change in place and
+    comments, blanks and anything else survive untouched."""
+    lines = path.read_text().splitlines() if path.exists() else []
+    if lines:
         # .env has no suffix to replace (it's all stem), so with_suffix would
         # make ".env.env.bak"; append instead.
         backup = path.with_name(path.name + ".bak")
         shutil.copyfile(path, backup)
-        print(f"  (backed up to {backup})")
-    body = "\n".join(f"{k}={v}" for k, v in env.items())
-    path.write_text(f"# Written by `python -m saccade setup`. Edit freely.\n{body}\n")
-    return True
+        print(f"\n  (kept the rest of your {path}; the version before this is at {backup})")
+    out = [] if lines else ["# Written by `python -m saccade setup`. Edit freely."]
+    unwritten = dict(env)
+    for line in lines:
+        body = line.strip()
+        prefix = "export " if body.startswith("export ") else ""
+        key = body[len(prefix) :].partition("=")[0].strip()
+        if body.startswith("#") or "=" not in body or key not in env:
+            out.append(line)
+        elif key in unwritten:
+            out.append(f"{prefix}{key}={unwritten.pop(key)}")
+        # else: a second line for a key already rewritten above. _apply_dotenv
+        # takes the first one it sees, so this was dead weight before we got
+        # here; keeping it would just disagree with the live value in writing.
+    if unwritten:
+        if out and out[-1].strip():
+            out.append("")
+        out.extend(f"{k}={v}" for k, v in unwritten.items())
+    path.write_text("\n".join(out) + "\n")
 
 
 def main() -> None:
@@ -600,8 +668,7 @@ def main() -> None:
         if key:
             env[var] = key
 
-    if not _write_env(Path(".env"), env):
-        return
+    _write_env(Path(".env"), env)
 
     # sys.executable, not a bare `python`: the shell that just ran setup may have
     # no `python` on it at all (macOS), and the one it does have is often not the

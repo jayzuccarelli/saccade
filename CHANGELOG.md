@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- `setup` starts Ollama when a tier picks it and the daemon is down, instead of
+  printing `ollama serve` and leaving. It only does this for a stopped server,
+  and only once you've chosen it: installing Ollama and pulling a model are still
+  yours. If the start doesn't take, it says so rather than repeating the command.
+- `setup` merges into an existing `.env` instead of asking whether to overwrite
+  it. The prompt's two answers both lost something: yes dropped every hand-added
+  key and comment, no dropped the whole interview and printed the picks back to
+  paste in by hand. Only the vars the wizard set are rewritten; the previous file
+  is still copied to `.env.bak`.
+
 - The `home_assistant` speaker now synthesizes with Piper by default instead of
   Gemini TTS, so playing on a media_player no longer forces an API key. Set
   `SACCADE_HA_TTS=gemini_tts` to keep the hosted voices. **Behavior change:** an
