@@ -697,3 +697,37 @@ def test_a_start_that_worked_says_so_even_with_no_models(monkeypatch, capsys):
     usable, state, _ = setuplib._start_ollama()
     assert not usable and state == "no models pulled"
     assert "Ollama is up" in capsys.readouterr().out
+
+
+def test_a_stale_answer_does_not_outlive_the_question(tmp_path: Path):
+    """Review's catch. An earlier run wrote SACCADE_AUDIO_OUT_INDEX; this one has
+    no audio extra, so it picks Piper through SACCADE_PLAY_CMD and never writes an
+    index. The index wins at playback, so keeping it killed speech on the exact
+    no-extra path the wizard was trying to support."""
+    path = tmp_path / ".env"
+    path.write_text("SACCADE_SPEAKER=piper\nSACCADE_AUDIO_OUT_INDEX=3\nGEMINI_API_KEY=secret\n")
+    _write_env(path, {"SACCADE_SPEAKER": "piper", "SACCADE_PLAY_CMD": "afplay"})
+    body = path.read_text()
+    assert "SACCADE_AUDIO_OUT_INDEX" not in body
+    assert "SACCADE_PLAY_CMD=afplay" in body
+    assert "GEMINI_API_KEY=secret" in body  # a stored secret, not a stale answer
+
+
+def test_a_key_survives_a_run_that_did_not_need_it(tmp_path: Path):
+    """Dropping a key because this run picked a different backend means digging it
+    out of the provider console again. Keys are stored, not answered."""
+    path = tmp_path / ".env"
+    path.write_text("OPENAI_API_KEY=sk-old\nANTHROPIC_API_KEY=sk-ant\n")
+    _write_env(path, {"SACCADE_GLANCE_BACKEND": "ollama"})
+    body = path.read_text()
+    assert "OPENAI_API_KEY=sk-old" in body
+    assert "ANTHROPIC_API_KEY=sk-ant" in body
+
+
+def test_hand_tuning_the_wizard_never_asks_about_still_survives(tmp_path: Path):
+    """The clearing is scoped to what the wizard writes, or it turns back into the
+    overwrite it replaced."""
+    path = tmp_path / ".env"
+    path.write_text("SACCADE_GLANCE_INTERVAL_S=3\nSACCADE_SENSOR=stub\n")
+    _write_env(path, {"SACCADE_SENSOR": "webcam"})
+    assert "SACCADE_GLANCE_INTERVAL_S=3" in path.read_text()

@@ -571,6 +571,28 @@ def _needed_keys(env: dict[str, str]) -> list[str]:
     return needed
 
 
+# Every var the wizard writes as an answer to one of its questions. Merging keeps
+# what it doesn't own, so it has to know what it does: a var in here that this run
+# didn't set is a stale answer to a question just asked again, and leaving it in
+# lets the old answer beat the new one. Deliberately excludes the API keys, which
+# are stored secrets rather than answers, and dropping one because this run picked
+# a different backend would make you dig it out again.
+_WIZARD_VARS = frozenset(
+    {
+        "SACCADE_SENSOR",
+        "SACCADE_WEBCAM_INDEX",
+        "SACCADE_SCREEN_INDEX",
+        "SACCADE_MIC_INDEX",
+        GLANCE_VAR,
+        FOCUS_VAR,
+        STT_VAR,
+        "SACCADE_SPEAKER",
+        "SACCADE_PLAY_CMD",
+        _OUT_VAR,
+    }
+)
+
+
 def _write_env(path: Path, env: dict[str, str]) -> None:
     """Write the picks into `path`, rewriting only the vars the wizard just set.
 
@@ -594,6 +616,11 @@ def _write_env(path: Path, env: dict[str, str]) -> None:
         body = line.strip()
         prefix = "export " if body.startswith("export ") else ""
         key = body[len(prefix) :].partition("=")[0].strip()
+        if key in _WIZARD_VARS and key not in env:
+            # Review's catch: an old SACCADE_AUDIO_OUT_INDEX outlived a run that
+            # chose SACCADE_PLAY_CMD instead, and the index wins at playback, so
+            # speech died on the stale device the wizard had just replaced.
+            continue
         if body.startswith("#") or "=" not in body or key not in env:
             out.append(line)
         elif key in unwritten:
