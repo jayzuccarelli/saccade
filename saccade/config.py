@@ -86,6 +86,13 @@ class Config:
     # Glance downscales its input (peripheral = low acuity, saves tokens). Focus
     # always gets full resolution (it reasons carefully and runs rarely). 0 = off.
     glance_max_dim: int = int(os.environ.get("SACCADE_GLANCE_MAX_DIM", "768"))
+
+    # Seconds of audio per clip. Was tied to the glance rate, which made it 1.0s
+    # by default: you cannot say a sentence in a second, and Whisper on a
+    # one-second fragment usually returns nothing at all, so a mic that worked
+    # perfectly looked deaf. Long enough for a phrase, short enough that the
+    # answer isn't stale.
+    audio_window_s: float = float(os.environ.get("SACCADE_AUDIO_WINDOW_S", "4.0"))
     # Adaptive cadence: let Glance decide how soon to look again (per its
     # next_glance_s). It only ever slows below glance_fps, never faster: quiet
     # scene = rest (up to glance_max_interval s), action = every tick. 0 to disable.
