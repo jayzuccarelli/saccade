@@ -92,3 +92,28 @@ def test_glance_marks_already_escalated_percepts_in_context(tmp_path):
         )
     )
     assert "[escalated] person on the couch" in be.prompt
+
+
+def test_the_trace_gets_what_was_sent_not_what_was_captured(tmp_path):
+    """The question a trace answers is what the model saw. Recording the camera's
+    original while the model got a downscaled copy would let the two disagree
+    exactly when it matters."""
+    import asyncio
+    import json
+
+    from saccade.trace import Trace
+
+    sent = {}
+
+    class _Backend:
+        async def complete(self, prompt, frames, schema=None):
+            sent["frames"] = frames
+            return '{"summary": "s", "tags": [], "salience": 0.1, "escalate": false, "state_delta": "", "next_glance_s": 1.0}'
+
+    trace = Trace(tmp_path)
+    g = Glance(_Backend(), max_dim=0, trace=trace)
+    mem = Memory(str(tmp_path / "e.jsonl"), str(tmp_path / "p.md"))
+    asyncio.run(g.perceive(Window(frames=[Frame(ts=1.0, image=b"asis")]), mem))
+    assert (trace.root / "000001_glance_0.jpg").read_bytes() == b"asis"
+    meta = json.loads((trace.root / "000001_glance.json").read_text())
+    assert meta["images"] == 1

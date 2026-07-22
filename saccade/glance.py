@@ -13,6 +13,7 @@ from saccade.backends.base import Backend
 from saccade.imageutil import downscale
 from saccade.memory import Memory
 from saccade.schema import PERCEPT_SCHEMA, Frame, Percept, Window, percept_from
+from saccade.trace import Trace
 
 PROMPT = """You are the peripheral awareness of an ambient assistant. You take a quick \
 glance about once a second and decide only whether something is worth a closer look.
@@ -75,9 +76,10 @@ watch hard when it matters, rest when it doesn't."""
 
 
 class Glance:
-    def __init__(self, backend: Backend, max_dim: int = 0):
+    def __init__(self, backend: Backend, max_dim: int = 0, trace: Trace | None = None):
         self.backend = backend
         self.max_dim = max_dim  # peripheral vision is low-acuity: shrink to save tokens
+        self.trace = trace  # writes each tick's input+reply to disk; None = off
 
     def _recent(self, memory: Memory, n: int = 8) -> str:
         """Recent percepts, marking the ones already escalated, so 'newly worth a
@@ -98,5 +100,10 @@ class Glance:
 
     async def perceive(self, window: Window, memory: Memory) -> Percept:
         prompt = PROMPT.format(recent=self._recent(memory))
-        raw = await self.backend.complete(prompt, self._downscaled(window), schema=PERCEPT_SCHEMA)
+        frames = self._downscaled(window)
+        raw = await self.backend.complete(prompt, frames, schema=PERCEPT_SCHEMA)
+        if self.trace:
+            # The downscaled frames, deliberately: the question a trace answers is
+            # what the model saw, and the camera's original isn't it.
+            self.trace.record("glance", frames, raw)
         return percept_from(raw, window.ts)
