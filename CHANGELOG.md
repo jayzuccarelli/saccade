@@ -2,10 +2,12 @@
 
 ## Unreleased
 
-- `setup` offers to pull the Ollama models the picked tiers will ask for, and
-  checks them by name rather than by count. Having some other model pulled read
-  as "ready", and then every tick died on `Ollama has no model 'gemma3:4b'`.
-  Offered rather than automatic: it's gigabytes, unlike everything else the
+- `setup` offers the Ollama models you already have before offering a download,
+  and checks them by name rather than by count. Having some other model pulled
+  read as "ready", and then every tick died on `Ollama has no model 'gemma3:4b'`.
+  Models are filtered by what they can do (`/api/show` capabilities), so a
+  text-only model is never offered to a tier watching a camera. Downloading is
+  offered rather than automatic: it's gigabytes, unlike everything else the
   wizard runs for you.
 
 - The loop starts a stopped local Ollama instead of failing every tick with
