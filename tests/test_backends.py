@@ -124,3 +124,13 @@ def test_the_old_message_still_lands_when_starting_fails(monkeypatch):
     monkeypatch.setattr(mod.request, "urlopen", _refuse_urlopen)
     with pytest.raises(mod.OllamaError, match="isn't reachable"):
         b._post({"model": "gemma3:4b"})
+
+
+def test_a_missing_stt_extra_gets_the_install_line_not_a_traceback():
+    """A real run picked local transcription without the extra and died on its
+    first audio frame with 40 lines of asyncio ending in No module named
+    'faster_whisper'. Every other optional dep answers with one line."""
+    from saccade.__main__ import _dependency_hint
+
+    hint = _dependency_hint(ModuleNotFoundError("No module named 'faster_whisper'", name="faster_whisper"))
+    assert "'.[stt]'" in hint
