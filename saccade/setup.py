@@ -464,6 +464,126 @@ def _install_cmd(spec: str, editable: bool = False) -> list[str] | None:
     return cmd
 
 
+MODEL_VARS = {"glance": "SACCADE_GLANCE_MODEL", "focus": "SACCADE_FOCUS_MODEL"}
+
+
+def _pulled_models() -> dict[str, set[str]]:
+    """Every model already on this machine, mapped to what it can do.
+
+    Capabilities come from /api/show rather than a list of model names we'd have
+    to keep current: "vision" is the one that matters, because a text-only model
+    picked for a camera fails on every frame instead of at setup."""
+    host, _ = _ollama_endpoint()
+    try:
+        with request.urlopen(f"{host}/api/tags", timeout=0.5) as resp:
+            names = [m["name"] for m in json.loads(resp.read()).get("models", [])]
+    except (OSError, ValueError, KeyError):
+        return {}
+    out: dict[str, set[str]] = {}
+    for name in names:
+        req = request.Request(
+            f"{host}/api/show",
+            data=json.dumps({"model": name}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with request.urlopen(req, timeout=2.0) as resp:
+                out[name] = set(json.loads(resp.read()).get("capabilities", []))
+        except (OSError, ValueError):
+            # An older Ollama doesn't report capabilities. Keep the model listed
+            # rather than hiding what someone already has; it just can't be
+            # offered for a tier that needs to see.
+            out[name] = set()
+    return out
+
+
+def _default_model(role: str) -> str:
+    from saccade.__main__ import DEFAULT_MODELS  # module scope would cycle
+
+    return DEFAULT_MODELS[("ollama", role)]
+
+
+def _model_choices(role: str, pulled: dict[str, set[str]], needs_vision: bool) -> list[Choice]:
+    """What this tier could run: the models already here first, the download last.
+
+    Downloading a fourth model onto a machine that already has three that would
+    do the job is the wrong default, and it's the wizard that knows both halves.
+    A tier watching a camera only gets models that report vision; the rest would
+    take the job and then fail on every frame."""
+    var = MODEL_VARS[role]
+    usable = [n for n, caps in sorted(pulled.items()) if "vision" in caps or not needs_vision]
+    out: list[Choice] = [(f"{n}: already pulled, no download", {var: n}) for n in usable]
+    default = _default_model(role)
+    if default in pulled:
+        return [(f"{default}: already pulled, no download", {var: default})]
+    out.append((f"{default}: the default, a few GB to download", {var: default}))
+    return out
+
+
+def _resolve_models(env: dict[str, str], needs_vision: bool) -> list[str]:
+    """Settle which model each Ollama tier runs, and return the ones to download.
+
+    Always writes the model var for an Ollama tier, even when it picks the
+    default: leaving it unset lets an override from a previous run quietly win
+    over the answer just given."""
+    to_pull = []
+    pulled = _pulled_models()
+    for var, role, label in (
+        (GLANCE_VAR, "glance", "the watcher"),
+        (FOCUS_VAR, "focus", "the thinker"),
+    ):
+        if env.get(var) != "ollama":
+            continue
+        choices = _model_choices(role, pulled, needs_vision)
+        picked = choices[0][1] if len(choices) == 1 else _ask(f"Which model for {label}?", choices)
+        env.update(picked)
+        model = picked[MODEL_VARS[role]]
+        if model not in pulled:
+            to_pull.append(model)
+    return to_pull
+
+
+def _offer_missing_models(env: dict[str, str], needs_vision: bool = True) -> None:
+    """Settle the models, then download only what isn't here.
+
+    Checked by name, not by count: `ready, 3 model(s) pulled` was standing in for
+    "has the model this run needs", and the two came apart the moment someone had
+    three unrelated models, at which point setup said ready and every tick died on
+    `no model 'gemma3:4b'`.
+
+    The download is offered, not automatic, and never at run time. Everything else
+    the wizard runs for you takes seconds; this is gigabytes over someone's
+    network, and a download that size starting on its own (or worse, inside the
+    loop, where it would look like a hang) is the one case where asking earns its
+    keystroke."""
+    missing = _resolve_models(env, needs_vision)
+    if not missing:
+        return
+    if not shutil.which("ollama"):
+        # Keeping Ollama after being told it isn't installed is allowed, and then
+        # `ollama pull` is a FileNotFoundError that takes the whole wizard down
+        # before .env is written. Offering to run a command that can't run is
+        # worse than printing it.
+        print("\n  Once Ollama is installed:\n")
+        for model in missing:
+            print(f"    ollama pull {model}")
+        print()
+        return
+    names = " and ".join(missing)
+    size = "a few GB each" if len(missing) > 1 else "a few GB"
+    print(f"\n  {names} still {'need' if len(missing) > 1 else 'needs'} downloading: {size}.")
+    if input("  Download now? [Y/n] ").strip().lower() not in ("", "y", "yes"):
+        print(f"\n  When you want {'them' if len(missing) > 1 else 'it'}:\n")
+        for model in missing:
+            print(f"    ollama pull {model}")
+        print("\n  Until then every tick fails with 'Ollama has no model'.\n")
+        return
+    for model in missing:
+        print(f"\n  pulling {model}...\n")
+        subprocess.run(["ollama", "pull", model])
+
+
 def _offer_install(what: str, spec: str, editable: bool = False) -> bool:
     """Offer to run the install rather than assigning it as homework.
 
@@ -589,6 +709,11 @@ _WIZARD_VARS = frozenset(
         "SACCADE_SPEAKER",
         "SACCADE_PLAY_CMD",
         _OUT_VAR,
+        # The model vars only get written for an Ollama tier, so they have to be
+        # cleared for one that isn't: moving Glance from Ollama to Gemini used to
+        # leave SACCADE_GLANCE_MODEL=gemma3:4b behind, and the runtime would then
+        # ask Gemini, in earnest, for gemma3:4b.
+        *MODEL_VARS.values(),
     }
 )
 
@@ -700,6 +825,10 @@ def main() -> None:
         env.update(_ask("Out of which speaker?", _device_choices("Output", _OUT_VAR, outs)))
 
     _confirm_unusable_ollama(env, ollama, hears_audio)
+    # A mic-only run never sends an image, so a text-only model someone already
+    # has is a perfectly good watcher. Anything with a camera or a screen in it
+    # needs one that can see.
+    _offer_missing_models(env, needs_vision=bool(_sensor_kinds(env) - {"mic"}))
     if env.get(STT_VAR) == "whisper" and not stt[0]:
         print(
             "\n  Local transcription isn't installed yet:\n\n"
