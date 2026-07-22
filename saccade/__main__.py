@@ -279,6 +279,10 @@ EXTRA_FOR_MODULE = {
     "google": "gemini",
     "openai": "openai",
     "anthropic": "anthropic",
+    # Reached only when someone picked local transcription without the extra, which
+    # is exactly the case that produced a 40-line asyncio traceback ending in
+    # `No module named 'faster_whisper'` on the first audio frame.
+    "faster_whisper": "stt",
 }
 
 

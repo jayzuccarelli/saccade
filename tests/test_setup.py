@@ -848,3 +848,17 @@ def test_no_pull_is_offered_without_the_cli(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "Once Ollama is installed" in out
     assert "ollama pull gemma3:4b" in out
+
+
+def test_local_transcription_is_offered_not_assigned(monkeypatch, capsys):
+    """Picking it and being handed a command left the run to die on its first
+    audio frame with a 40-line traceback ending in No module named
+    'faster_whisper'. Every other extra here is offered."""
+    installs = []
+    monkeypatch.setattr(setuplib, "_install_cmd", lambda spec, editable=False: ["uv", "pip", "install"])
+    monkeypatch.setattr("builtins.input", lambda *_: "y")
+    monkeypatch.setattr(
+        setuplib.subprocess, "run", lambda cmd, *a, **k: installs.append(cmd) or _Ok()
+    )
+    assert setuplib._offer_install("Transcribing on this machine", ".[stt]", editable=True)
+    assert installs == [["uv", "pip", "install"]]
