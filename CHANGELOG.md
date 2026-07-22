@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Playback falls back to the OS player whenever the chosen device refuses the
+  clip, not just when it can't do the channel count. A device that won't open at
+  Piper's 22050 Hz answers `PaMacCore err='-50'`, and that was still eating every
+  utterance after the channel fix.
+
 - Glance's `salience` has anchors instead of a vibe. A real run scored a man
   sitting at a desk 0.7-0.8 on every tick, which means the number carries no
   information and Focus has nothing to go on. Someone working is 0.1, 0.9+ is
