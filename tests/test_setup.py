@@ -731,3 +731,58 @@ def test_hand_tuning_the_wizard_never_asks_about_still_survives(tmp_path: Path):
     path.write_text("SACCADE_GLANCE_INTERVAL_S=3\nSACCADE_SENSOR=stub\n")
     _write_env(path, {"SACCADE_SENSOR": "webcam"})
     assert "SACCADE_GLANCE_INTERVAL_S=3" in path.read_text()
+
+
+def test_the_check_is_the_model_not_the_count(monkeypatch):
+    """What bit a real run: Ollama had models, just not this one, so setup said
+    "ready, 3 model(s) pulled" and every tick then died on
+    `Ollama has no model 'gemma3:4b'`. Count was standing in for the thing that
+    matters, and the two come apart the moment you've pulled anything else."""
+    monkeypatch.setattr(setuplib, "_ollama_models", lambda: {"llama3:8b", "qwen2.5:7b"})
+    monkeypatch.setattr("builtins.input", lambda *_: "n")
+    missing = [m for m in setuplib._needed_models({GLANCE_VAR: "ollama"}) if m not in setuplib._ollama_models()]
+    assert missing == ["gemma3:4b"]
+
+
+def test_only_the_tiers_that_picked_ollama_need_models(monkeypatch):
+    """Pulling Focus's 12b for someone who put Focus on Gemini is 8GB of nothing."""
+    assert setuplib._needed_models({GLANCE_VAR: "ollama", FOCUS_VAR: "gemini"}) == ["gemma3:4b"]
+    assert setuplib._needed_models({GLANCE_VAR: "gemini", FOCUS_VAR: "gemini"}) == []
+    assert setuplib._needed_models({GLANCE_VAR: "ollama", FOCUS_VAR: "ollama"}) == [
+        "gemma3:4b",
+        "gemma3:12b",
+    ]
+
+
+def test_a_model_override_is_what_gets_pulled(monkeypatch):
+    """Pulling the default while the backend asks for the override leaves you with
+    gigabytes on disk and the same error."""
+    monkeypatch.setenv("SACCADE_GLANCE_MODEL", "qwen2.5vl:7b")
+    assert setuplib._needed_models({GLANCE_VAR: "ollama"}) == ["qwen2.5vl:7b"]
+
+
+def test_a_big_download_is_asked_about_not_assumed(monkeypatch, capsys):
+    """Everything else the wizard does finishes in seconds. Gigabytes over
+    someone's network is the one case where asking earns its keystroke."""
+    monkeypatch.setattr(setuplib, "_ollama_models", lambda: set())
+    monkeypatch.setattr("builtins.input", lambda *_: "n")
+    monkeypatch.setattr(setuplib.subprocess, "run", lambda *a, **k: pytest.fail("pulled anyway"))
+    setuplib._offer_missing_models({GLANCE_VAR: "ollama"})
+    out = capsys.readouterr().out
+    assert "a few GB to download" in out
+    assert "ollama pull gemma3:4b" in out
+
+
+def test_saying_yes_actually_pulls(monkeypatch):
+    monkeypatch.setattr(setuplib, "_ollama_models", lambda: set())
+    monkeypatch.setattr("builtins.input", lambda *_: "")
+    pulled = []
+    monkeypatch.setattr(setuplib.subprocess, "run", lambda cmd, *a, **k: pulled.append(cmd))
+    setuplib._offer_missing_models({GLANCE_VAR: "ollama", FOCUS_VAR: "ollama"})
+    assert pulled == [["ollama", "pull", "gemma3:4b"], ["ollama", "pull", "gemma3:12b"]]
+
+
+def test_nothing_is_asked_when_the_models_are_there(monkeypatch):
+    monkeypatch.setattr(setuplib, "_ollama_models", lambda: {"gemma3:4b", "gemma3:12b"})
+    monkeypatch.setattr("builtins.input", lambda *_: pytest.fail("asked about a pulled model"))
+    setuplib._offer_missing_models({GLANCE_VAR: "ollama", FOCUS_VAR: "ollama"})

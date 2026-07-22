@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `setup` offers to pull the Ollama models the picked tiers will ask for, and
+  checks them by name rather than by count. Having some other model pulled read
+  as "ready", and then every tick died on `Ollama has no model 'gemma3:4b'`.
+  Offered rather than automatic: it's gigabytes, unlike everything else the
+  wizard runs for you.
+
 - The loop starts a stopped local Ollama instead of failing every tick with
   `start it: ollama serve`. Setup already did this; the tick that actually needs
   the daemon didn't. Local host only, once per process, and it says so in the log.

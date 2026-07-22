@@ -464,6 +464,60 @@ def _install_cmd(spec: str, editable: bool = False) -> list[str] | None:
     return cmd
 
 
+def _ollama_models() -> set[str]:
+    """What's actually pulled, by name. Empty if Ollama isn't answering."""
+    host, _ = _ollama_endpoint()
+    try:
+        with request.urlopen(f"{host}/api/tags", timeout=0.5) as resp:
+            return {m["name"] for m in json.loads(resp.read()).get("models", [])}
+    except (OSError, ValueError, KeyError):
+        return set()
+
+
+def _needed_models(env: dict[str, str]) -> list[str]:
+    """The Ollama models the picked tiers will ask for, honouring the model
+    overrides, because those are what the backend will actually request."""
+    from saccade.__main__ import DEFAULT_MODELS  # here: importing it at module scope cycles
+
+    out = []
+    for var, role, override in (
+        (GLANCE_VAR, "glance", "SACCADE_GLANCE_MODEL"),
+        (FOCUS_VAR, "focus", "SACCADE_FOCUS_MODEL"),
+    ):
+        if env.get(var) == "ollama":
+            out.append(os.environ.get(override) or DEFAULT_MODELS[("ollama", role)])
+    return out
+
+
+def _offer_missing_models(env: dict[str, str]) -> None:
+    """Pull the models the picks need, rather than leaving it to the first tick.
+
+    A pulled model is what "Ollama is ready" was standing in for, and the two came
+    apart the moment someone had one model but not this one: setup said ready, then
+    every tick died on `no model 'gemma3:4b'`. So check the names the backend will
+    ask for, not the count.
+
+    Offered, not automatic, and not at run time either. Everything else the wizard
+    does for you finishes in seconds; this is gigabytes over someone's network, and
+    a download that size starting on its own (or worse, inside the loop, where it
+    would look like a hang) is the one case where asking earns its keystroke."""
+    missing = [m for m in _needed_models(env) if m not in _ollama_models()]
+    if not missing:
+        return
+    names = " and ".join(missing)
+    size = "a few GB each" if len(missing) > 1 else "a few GB"
+    print(f"\n  Ollama doesn't have {names} yet. That's {size} to download.")
+    if input("  Download now? [Y/n] ").strip().lower() not in ("", "y", "yes"):
+        print(f"\n  When you want {'them' if len(missing) > 1 else 'it'}:\n")
+        for model in missing:
+            print(f"    ollama pull {model}")
+        print("\n  Until then every tick fails with 'Ollama has no model'.\n")
+        return
+    for model in missing:
+        print(f"\n  pulling {model}...\n")
+        subprocess.run(["ollama", "pull", model])
+
+
 def _offer_install(what: str, spec: str, editable: bool = False) -> bool:
     """Offer to run the install rather than assigning it as homework.
 
@@ -700,6 +754,7 @@ def main() -> None:
         env.update(_ask("Out of which speaker?", _device_choices("Output", _OUT_VAR, outs)))
 
     _confirm_unusable_ollama(env, ollama, hears_audio)
+    _offer_missing_models(env)
     if env.get(STT_VAR) == "whisper" and not stt[0]:
         print(
             "\n  Local transcription isn't installed yet:\n\n"
