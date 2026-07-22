@@ -322,13 +322,17 @@ def _start_ollama() -> tuple[bool, str, str]:
         )
     except OSError:
         return failed
+    stop = "taskkill /IM ollama.exe" if sys.platform == "win32" else "pkill ollama"
     for _ in range(20):
         time.sleep(0.25)
         usable, state, fix = _ollama_state()
         if state == _NOT_RUNNING:
             continue
-        if usable:
-            print("  Ollama is up. It stays up after setup; `pkill ollama` stops it.")
+        # Announced whenever it came up, not only when it came up ready: a server
+        # with no models pulled is still a server we started, and the "Starting
+        # it..." above needs an ending either way. What's left to do is the next
+        # prompt's job.
+        print(f"  Ollama is up. It stays up after setup; `{stop}` stops it.")
         return usable, state, fix
     return failed
 

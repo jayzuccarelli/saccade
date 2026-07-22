@@ -684,3 +684,16 @@ def test_an_unset_host_is_localhost(monkeypatch):
     monkeypatch.delenv("SACCADE_OLLAMA_HOST", raising=False)
     monkeypatch.delenv("OLLAMA_HOST", raising=False)
     assert setuplib._ollama_endpoint() == ("http://localhost:11434", True)
+
+
+def test_a_start_that_worked_says_so_even_with_no_models(monkeypatch, capsys):
+    """"Starting it..." needs an ending either way. A daemon with nothing pulled
+    is still a daemon we started; what's left to do is the next prompt's job."""
+    monkeypatch.setattr(setuplib.subprocess, "Popen", lambda *a, **k: None)
+    monkeypatch.setattr(setuplib.time, "sleep", lambda _: None)
+    monkeypatch.setattr(
+        setuplib, "_ollama_state", lambda: (False, "no models pulled", "Pull one with:  ollama pull gemma3:4b")
+    )
+    usable, state, _ = setuplib._start_ollama()
+    assert not usable and state == "no models pulled"
+    assert "Ollama is up" in capsys.readouterr().out
