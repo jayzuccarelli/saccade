@@ -88,3 +88,16 @@ def test_the_sweep_only_eats_what_the_trace_wrote(tmp_path: Path, monkeypatch):
         Trace(tmp_path)
     assert (tmp_path / "run-keepsake").exists()
     assert (tmp_path / "notes.txt").read_text() == "mine"
+
+
+def test_a_burst_of_same_second_starts_never_sweeps_the_new_run(tmp_path: Path, monkeypatch):
+    """Review's catch, reproduced before fixing: same-second dirs shared a sort
+    key, so the sweep picked its victim by directory-listing order, and on one
+    filesystem that was the run about to write. The run just created is exempt:
+    being about to write is what makes it newest, and no name tie-break says that."""
+    monkeypatch.setattr("saccade.trace.time.time", lambda: 111)
+    traces = [Trace(tmp_path) for _ in range(6)]
+    assert traces[-1].root.exists()
+    _tick(traces[-1])
+    assert (traces[-1].root / "000001_glance.json").exists()
+    assert sum(t.root.exists() for t in traces) == 3

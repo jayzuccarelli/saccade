@@ -24,7 +24,15 @@ from saccade.schema import Frame
 # Exactly the names this module mints, and nothing else: the sweep below deletes
 # whatever matches, so a loose pattern would eat a user's own files for the crime
 # of living in the trace dir.
-_RUN_DIR = re.compile(r"run-(\d+)-\d+(-\d+)?")
+_RUN_DIR = re.compile(r"run-(\d+)-\d+(?:-(\d+))?")
+
+
+def _run_order(d: Path) -> tuple[int, int]:
+    """Timestamp, then collision suffix: same-second dirs otherwise share a key
+    and the sweep would pick its victim by directory-listing order."""
+    m = _RUN_DIR.fullmatch(d.name)
+    assert m is not None  # callers filter on the same pattern
+    return int(m.group(1)), int(m.group(2) or 0)
 
 
 class Trace:
@@ -36,22 +44,38 @@ class Trace:
         # previous run's evidence is the one failure a trace must not have.
         parent = Path(root)
         base = parent / f"run-{int(time.time())}-{os.getpid()}"
-        path, i = base, 1
-        while path.exists():
-            path = Path(f"{base}-{i}")
-            i += 1
-        self.root = path
+        # Max existing suffix plus one, not the first free name: the sweep frees
+        # old names, and reusing one makes the suffix lie about creation order and
+        # lets two Trace objects alias one path.
+        taken = [0] if base.exists() else []
+        taken += [
+            int(m.group(2))
+            for d in parent.glob(f"{base.name}-*")
+            if (m := _RUN_DIR.fullmatch(d.name)) and m.group(2)
+        ]
+        self.root = Path(f"{base}-{max(taken) + 1}") if taken else base
         self.root.mkdir(parents=True)
         self.keep = keep
         self.n = 0
         # The per-run cap bounds one run; this bounds the habit. A debugging
         # afternoon is a dozen Ctrl-C-and-reruns, each leaving up to `keep` ticks
         # behind, and nobody returns to sweep them.
-        runs = sorted(
-            (d for d in parent.iterdir() if d.is_dir() and _RUN_DIR.fullmatch(d.name)),
-            key=lambda d: int(_RUN_DIR.fullmatch(d.name).group(1)),  # type: ignore[union-attr]
+        #
+        # The run just created is exempt rather than sorted: several starts in the
+        # same second share a timestamp, and review caught the sweep picking its
+        # victim among them by directory-listing order, sometimes the fresh one.
+        # Being the run that is about to write is what makes it the newest, and no
+        # tie-break on names expresses that (nor survives a clock stepping back).
+        others = sorted(
+            (
+                d
+                for d in parent.iterdir()
+                if d != self.root and d.is_dir() and _RUN_DIR.fullmatch(d.name)
+            ),
+            key=_run_order,
         )
-        for stale in runs[:-keep_runs]:
+        cut = max(0, len(others) - (keep_runs - 1))
+        for stale in others[:cut]:
             shutil.rmtree(stale, ignore_errors=True)
 
     def record(self, role: str, frames: list[Frame], reply: str) -> None:
