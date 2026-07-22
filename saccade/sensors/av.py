@@ -20,6 +20,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from saccade.schema import Frame
+from saccade.sensors._camera import latest_jpeg
 from saccade.sensors.mic import SAMPLE_RATE, record_pcm, require_audio, wav_bytes
 
 
@@ -31,21 +32,16 @@ class AVSensor:
         fps: float = 1.0,
         sample_rate: int = SAMPLE_RATE,
         transcriber: Any | None = None,
+        seconds: float = 0.0,
     ):
         self.webcam_index = webcam_index
         self.mic_index = mic_index
-        self.seconds = 1.0 / fps  # audio clip length = one glance interval
+        # Not 1/fps: that made a one-second clip at the default rate, which is
+        # too short for a sentence and usually transcribes to nothing.
+        self.seconds = seconds if seconds > 0 else 1.0 / fps
         self.sample_rate = sample_rate
         self.transcriber = transcriber  # anything with `async transcribe(wav) -> str`
 
-    def _grab_jpeg(self, cap: Any) -> bytes | None:
-        import cv2
-
-        ok, frame = cap.read()
-        if not ok:
-            return None
-        ok2, buf = cv2.imencode(".jpg", frame)
-        return buf.tobytes() if ok2 else None
 
     async def stream(self) -> AsyncIterator[Frame]:
         import cv2  # lazy: pip install opencv-python-headless
@@ -64,7 +60,10 @@ class AVSensor:
         try:
             while True:
                 # Frame first (start of the window), then record audio across it.
-                image = self._grab_jpeg(cap)
+                # The newest frame, not the oldest queued one: a tick here records a
+                # second of audio and may transcribe it, so seconds pass per read
+                # while the camera keeps queueing, and the lag grows without bound.
+                image = latest_jpeg(cap)
                 pcm = await asyncio.to_thread(
                     record_pcm, self.seconds, self.sample_rate, self.mic_index
                 )

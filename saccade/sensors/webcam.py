@@ -13,6 +13,7 @@ import time
 from collections.abc import AsyncIterator
 
 from saccade.schema import Frame
+from saccade.sensors._camera import drain_to_latest
 
 
 class WebcamSensor:
@@ -40,6 +41,11 @@ class WebcamSensor:
         try:
             while True:
                 await asyncio.sleep(self.interval)
+                # The comment below is right about CAP_PROP_BUFFERSIZE and wrong
+                # about the consequence: a slow tick (a big model, a retry) leaves
+                # the queue growing, and the staleness compounds instead of
+                # staying at one interval. Drain it first.
+                drain_to_latest(cap)
                 ok, frame = cap.read()
                 if not ok:
                     # Unplugged USB cam or macOS sleep/wake killing the session:

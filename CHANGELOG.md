@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- The camera hands over the frame that is true *now*. OpenCV returns the oldest
+  frame the driver queued and `CAP_PROP_BUFFERSIZE` is honored only by V4L2, so
+  a tick that takes seconds (the `av` sensor records audio and transcribes it)
+  falls further behind on every read. Cover the lens and the model kept
+  describing a minute-old frame, which reads as the model making things up.
+- Audio clips are `SACCADE_AUDIO_WINDOW_S` (default 4s) rather than one glance
+  interval. At the default rate that was a one-second clip: too short for a
+  sentence, and Whisper on a one-second fragment usually returns nothing, so a
+  working mic looked deaf.
+
 - `setup` offers to install the `stt` extra instead of printing the command.
   Picking local transcription without it left the run to die on its first audio
   frame with a 40-line traceback ending in `No module named 'faster_whisper'`.

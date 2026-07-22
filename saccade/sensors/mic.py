@@ -77,9 +77,12 @@ class MicSensor:
         fps: float = 1.0,
         sample_rate: int = SAMPLE_RATE,
         transcriber: Any | None = None,
+        seconds: float = 0.0,
     ):
         self.index = index  # None = system default input device
-        self.seconds = 1.0 / fps  # each clip spans one glance interval
+        # Not 1/fps: that made a one-second clip at the default rate, which is
+        # too short for a sentence and usually transcribes to nothing.
+        self.seconds = seconds if seconds > 0 else 1.0 / fps
         self.sample_rate = sample_rate
         self.transcriber = transcriber  # anything with `async transcribe(wav) -> str`
 
