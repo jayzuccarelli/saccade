@@ -797,6 +797,7 @@ def test_a_big_download_is_asked_about_not_assumed(monkeypatch, capsys):
     """Everything else the wizard does finishes in seconds. Gigabytes over
     someone's network is the one case where asking earns its keystroke."""
     monkeypatch.setattr(setuplib, "_pulled_models", lambda: {})
+    monkeypatch.setattr(setuplib.shutil, "which", lambda _: "/usr/local/bin/ollama")
     monkeypatch.setattr("builtins.input", lambda *_: "n")
     monkeypatch.setattr(setuplib.subprocess, "run", lambda *a, **k: pytest.fail("pulled anyway"))
     setuplib._offer_missing_models({GLANCE_VAR: "ollama"}, needs_vision=True)
@@ -807,6 +808,7 @@ def test_a_big_download_is_asked_about_not_assumed(monkeypatch, capsys):
 
 def test_saying_yes_actually_pulls(monkeypatch):
     monkeypatch.setattr(setuplib, "_pulled_models", lambda: {})
+    monkeypatch.setattr(setuplib.shutil, "which", lambda _: "/usr/local/bin/ollama")
     monkeypatch.setattr("builtins.input", lambda *_: "")
     pulled = []
     monkeypatch.setattr(setuplib.subprocess, "run", lambda cmd, *a, **k: pulled.append(cmd))
@@ -820,3 +822,29 @@ def test_nothing_is_downloaded_when_it_is_all_here(monkeypatch):
     )
     monkeypatch.setattr(setuplib.subprocess, "run", lambda *a, **k: pytest.fail("downloaded anyway"))
     setuplib._offer_missing_models({GLANCE_VAR: "ollama", FOCUS_VAR: "ollama"}, needs_vision=True)
+
+
+def test_a_model_var_does_not_outlive_its_backend(tmp_path: Path):
+    """Found chasing a review comment. The model vars are only written for an
+    Ollama tier, so moving Glance to Gemini left SACCADE_GLANCE_MODEL=gemma3:4b
+    behind, and the runtime then asked Gemini, in earnest, for gemma3:4b."""
+    path = tmp_path / ".env"
+    path.write_text("SACCADE_GLANCE_BACKEND=ollama\nSACCADE_GLANCE_MODEL=gemma3:4b\n")
+    _write_env(path, {GLANCE_VAR: "gemini"})
+    body = path.read_text()
+    assert "SACCADE_GLANCE_MODEL" not in body
+    assert "SACCADE_GLANCE_BACKEND=gemini" in body
+
+
+def test_no_pull_is_offered_without_the_cli(monkeypatch, capsys):
+    """Keeping Ollama after being told it isn't installed is allowed, and then
+    `ollama pull` is a FileNotFoundError that takes the wizard down before .env is
+    written. Offering to run a command that can't run is worse than printing it."""
+    monkeypatch.setattr(setuplib, "_pulled_models", lambda: {})
+    monkeypatch.setattr(setuplib.shutil, "which", lambda _: None)
+    monkeypatch.setattr("builtins.input", lambda *_: pytest.fail("offered an impossible download"))
+    monkeypatch.setattr(setuplib.subprocess, "run", lambda *a, **k: pytest.fail("ran a missing CLI"))
+    setuplib._offer_missing_models({GLANCE_VAR: "ollama"}, needs_vision=True)
+    out = capsys.readouterr().out
+    assert "Once Ollama is installed" in out
+    assert "ollama pull gemma3:4b" in out

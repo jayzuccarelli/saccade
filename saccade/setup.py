@@ -560,6 +560,16 @@ def _offer_missing_models(env: dict[str, str], needs_vision: bool = True) -> Non
     missing = _resolve_models(env, needs_vision)
     if not missing:
         return
+    if not shutil.which("ollama"):
+        # Keeping Ollama after being told it isn't installed is allowed, and then
+        # `ollama pull` is a FileNotFoundError that takes the whole wizard down
+        # before .env is written. Offering to run a command that can't run is
+        # worse than printing it.
+        print("\n  Once Ollama is installed:\n")
+        for model in missing:
+            print(f"    ollama pull {model}")
+        print()
+        return
     names = " and ".join(missing)
     size = "a few GB each" if len(missing) > 1 else "a few GB"
     print(f"\n  {names} still {'need' if len(missing) > 1 else 'needs'} downloading: {size}.")
@@ -699,6 +709,11 @@ _WIZARD_VARS = frozenset(
         "SACCADE_SPEAKER",
         "SACCADE_PLAY_CMD",
         _OUT_VAR,
+        # The model vars only get written for an Ollama tier, so they have to be
+        # cleared for one that isn't: moving Glance from Ollama to Gemini used to
+        # leave SACCADE_GLANCE_MODEL=gemma3:4b behind, and the runtime would then
+        # ask Gemini, in earnest, for gemma3:4b.
+        *MODEL_VARS.values(),
     }
 )
 
