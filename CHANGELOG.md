@@ -15,6 +15,12 @@
   channels [-9998]`: the agent watched all day and never made a sound. An index
   that can't output at all now warns and falls back to the OS default rather than
   costing you every spoken line.
+- Glance is told that a screen may be showing saccade's own log, and that reading
+  it back is not an event. Watching a screen means watching the terminal saccade
+  prints to: it read its own `man` summaries twenty times over and reported
+  `man`, and Focus escalated on the user typing about it.
+- Ctrl-C exits instead of printing a threading traceback, and says the pause is a
+  model call still in flight rather than leaving it looking like a hang.
 - Glance's prompt asks for a sentence, not a label. "one short line: what you
   notice now" got `man`, once a second, which is indistinguishable from nothing
   happening and is all Focus had to decide on.

@@ -39,6 +39,15 @@ nobody else in the room" is a summary. "man" is a label, and a run of them is \
 indistinguishable from nothing happening. Name the objects and the action, and \
 say when you are unsure rather than guessing.
 
+Describe THIS input. The CONTEXT above is there so you can tell what changed; \
+repeating its wording back is how a run of identical summaries starts, and once \
+started it hides everything that happens next.
+
+A screen may be showing this assistant's own output: lines like `[glance] sal=0.6` \
+are you, a moment ago. Reading your own log back is not an event, and neither is \
+someone typing about it. Report what the person is doing, not the text you \
+recognise on their screen.
+
 Judge change, not the static scene: someone who has simply been sitting or standing \
 there is ONE ongoing event, not a new one every second. If you already escalated an \
 ongoing situation (see the [escalated] lines above), do NOT escalate it again. \
