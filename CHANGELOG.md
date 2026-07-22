@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Glance's `salience` has anchors instead of a vibe. A real run scored a man
+  sitting at a desk 0.7-0.8 on every tick, which means the number carries no
+  information and Focus has nothing to go on. Someone working is 0.1, 0.9+ is
+  something wrong, and not being able to tell what's happening is 0.1 with a
+  summary that says so.
+- A quiet glance overwrites the last quiet one instead of scrolling. An hour of
+  an empty room was 3,600 near-identical lines, which buries the few that meant
+  something and, when a screen is one of the sensors, feeds back in as input.
+  Escalations, Focus verdicts and errors still scroll, and piping to a file still
+  keeps every tick.
+
 - `setup` offers the Ollama models you already have before offering a download,
   and checks them by name rather than by count. Having some other model pulled
   read as "ready", and then every tick died on `Ollama has no model 'gemma3:4b'`.
