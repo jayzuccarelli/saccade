@@ -98,7 +98,9 @@ def _next_interval(percept: Percept | None, floor: float, ceiling: float, adapti
 async def _glance(glance: Glance, memory: Memory) -> Percept | None:
     """Sample the latest frame and observe a Percept. Returns None if the buffer's
     empty. The cheap, serial half of a tick (always runs on the glance clock)."""
-    latest = memory.sensory.recent(1)
+    # One frame per input, not just the newest frame: with a camera and a mic both
+    # running, the camera wins nearly every tick and the room is never heard.
+    latest = memory.sensory.latest_per_source()
     if not latest:
         return None
     percept = await glance.perceive(Window(frames=latest), memory)

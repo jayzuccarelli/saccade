@@ -5,6 +5,7 @@ import asyncio
 
 import pytest
 
+from saccade.memory import SensoryMemory
 from saccade.schema import Frame
 from saccade.sensors.multi import MultiSensor
 
@@ -58,3 +59,36 @@ def test_one_sensor_is_still_valid():
 def test_no_sensors_is_a_config_error_not_a_silent_no_op():
     with pytest.raises(ValueError):
         MultiSensor([])
+
+
+def test_each_frame_says_which_input_it_came_from():
+    """Untagged, a camera frame and a mic clip are indistinguishable downstream,
+    so a fast camera simply buries a mic that speaks once a second."""
+    multi = MultiSensor([Fake("a", 2), Fake("b", 2)], labels=["webcam", "mic"])
+    frames = asyncio.run(_drain(multi))
+    assert {f.meta["source"] for f in frames} == {"webcam", "mic"}
+
+
+def test_a_glance_sees_one_frame_per_input():
+    """The bug this exists for: with a camera and a mic both running, taking the
+    single newest frame means the camera wins nearly every tick and the room is
+    effectively never heard."""
+    mem = SensoryMemory(16)
+    for i in range(6):
+        mem.observe(Frame(ts=float(i), meta={"source": "webcam"}))
+    mem.observe(Frame(ts=9.0, meta={"source": "mic"}, text="hello"))
+    for i in range(6, 12):
+        mem.observe(Frame(ts=float(i), meta={"source": "webcam"}))
+
+    latest = mem.latest_per_source()
+    assert {f.meta["source"] for f in latest} == {"webcam", "mic"}
+    assert [f.text for f in latest if f.meta["source"] == "mic"] == ["hello"]
+    assert max(f.ts for f in latest if f.meta["source"] == "webcam") == 11.0
+
+
+def test_one_sensor_still_gets_exactly_one_frame():
+    """Untagged frames share a single bucket, so this stays `recent(1)`."""
+    mem = SensoryMemory(16)
+    for i in range(4):
+        mem.observe(Frame(ts=float(i)))
+    assert [f.ts for f in mem.latest_per_source()] == [3.0]
