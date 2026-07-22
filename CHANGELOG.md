@@ -9,11 +9,18 @@
   text-only model is never offered to a tier watching a camera. Downloading is
   offered rather than automatic: it's gigabytes, unlike everything else the
   wizard runs for you.
-
+- Playback matches the output device instead of assuming it takes the clip as-is.
+  Piper writes mono and plenty of CoreAudio outputs will only open a stereo
+  stream, so every utterance died with `PortAudioError: Invalid number of
+  channels [-9998]`: the agent watched all day and never made a sound. An index
+  that can't output at all now warns and falls back to the OS default rather than
+  costing you every spoken line.
+- Glance's prompt asks for a sentence, not a label. "one short line: what you
+  notice now" got `man`, once a second, which is indistinguishable from nothing
+  happening and is all Focus had to decide on.
 - The loop starts a stopped local Ollama instead of failing every tick with
   `start it: ollama serve`. Setup already did this; the tick that actually needs
   the daemon didn't. Local host only, once per process, and it says so in the log.
-
 - `setup` starts Ollama when a tier picks it and the daemon is down, instead of
   printing `ollama serve` and leaving. It only does this for a stopped server,
   and only once you've chosen it: installing Ollama and pulling a model are still
