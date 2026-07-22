@@ -54,7 +54,10 @@ def _one_sensor(kind: str, c: Config) -> Sensor:
         from saccade.sensors.mic import MicSensor
 
         return MicSensor(
-            c.mic_index if c.mic_index >= 0 else None, c.capture_fps, transcriber=make_transcriber(c)
+            c.mic_index if c.mic_index >= 0 else None,
+            c.capture_fps,
+            transcriber=make_transcriber(c),
+            seconds=c.audio_window_s,
         )
     if kind == "av":
         from saccade.sensors.av import AVSensor
@@ -64,6 +67,7 @@ def _one_sensor(kind: str, c: Config) -> Sensor:
             c.mic_index if c.mic_index >= 0 else None,
             c.capture_fps,
             transcriber=make_transcriber(c),
+            seconds=c.audio_window_s,
         )
     if kind == "reolink":
         from saccade.sensors.reolink import ReolinkSensor

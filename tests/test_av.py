@@ -4,6 +4,7 @@ worth pinning, with cv2 and the mic faked."""
 
 import asyncio
 import sys
+import time
 import wave
 from io import BytesIO
 from types import SimpleNamespace
@@ -21,6 +22,12 @@ class _FakeCap:
 
     def set(self, *a):
         pass
+
+    def grab(self):
+        # A driver with nothing queued: the first grab is the live frame.
+        self.grabs = getattr(self, "grabs", 0) + 1
+        time.sleep(0.01)
+        return True
 
     def read(self):
         return True, "rawframe"  # a stand-in ndarray; imencode is faked below
@@ -70,3 +77,20 @@ def test_av_records_the_requested_mic_and_interval(monkeypatch):
 
     assert calls["dev"] == 2  # the chosen mic index reaches the recorder
     assert abs(calls["secs"] - 0.25) < 1e-9  # clip spans one glance interval (1/fps)
+
+
+def test_the_audio_window_is_not_the_glance_interval():
+    """1/fps made a one-second clip at the default rate. You can't say a sentence
+    in a second, and Whisper on a one-second fragment usually returns nothing, so
+    a mic that worked perfectly looked deaf."""
+    assert AVSensor(fps=1.0).seconds == 1.0  # the old behaviour, still available
+    assert AVSensor(fps=1.0, seconds=4.0).seconds == 4.0
+
+
+def test_the_frame_is_drained_before_it_is_read(monkeypatch):
+    """Each tick here records seconds of audio and may transcribe it, so the queue
+    grows the whole time and cap.read() hands back an ever-older frame."""
+    cap = _FakeCap()
+    monkeypatch.setattr(av, "latest_jpeg", lambda c: (c.grab(), b"jpeg")[1])
+    assert av.latest_jpeg(cap) == b"jpeg"
+    assert cap.grabs == 1
