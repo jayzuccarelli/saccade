@@ -34,6 +34,22 @@ class SensoryMemory:
     def recent(self, n: int) -> list[Frame]:
         return list(self.buf)[-n:]
 
+    def latest_per_source(self) -> list[Frame]:
+        """The newest frame from each input, oldest input first.
+
+        A glance used to take the single newest frame, which is right for one
+        sensor and wrong for several: a camera at 2 fps and a mic yielding a
+        one-second clip are not taking turns fairly, so the pictures win nearly
+        every tick and the room is effectively never heard. Frames carry the input
+        they came from (MultiSensor tags them), so a tick can show one of each.
+
+        Untagged frames all share the single `None` bucket, which makes this
+        identical to `recent(1)` for a lone sensor."""
+        newest: dict[Any, Frame] = {}
+        for frame in self.buf:
+            newest[frame.meta.get("source")] = frame
+        return list(newest.values())
+
 
 class WorkingMemory:
     def __init__(self, maxlen: int = 30):

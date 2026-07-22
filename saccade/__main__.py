@@ -12,6 +12,7 @@ Settings come from the environment (see config.py). Drop them in a gitignored
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import time
 from typing import TYPE_CHECKING, Any
@@ -36,7 +37,7 @@ def make_sensor(c: Config) -> Sensor:
     if len(kinds) > 1:
         from saccade.sensors.multi import MultiSensor
 
-        return MultiSensor([_one_sensor(k, c) for k in kinds])
+        return MultiSensor([_one_sensor(k, c) for k in kinds], labels=kinds)
     return _one_sensor(kinds[0] if kinds else "stub", c)
 
 
@@ -304,13 +305,18 @@ def cli() -> None:
     try:
         _cli()
     except KeyboardInterrupt:
-        # Ctrl-C is how you stop an ambient agent, so it's a normal exit, not a
-        # stack trace. The pause before it lands is a model call already in
-        # flight: a blocking HTTP request in a worker thread can't be cancelled,
-        # and the interpreter joins that thread on the way out. Saying so beats
-        # letting it look like a hang.
-        print("\nstopping (a model call may still be finishing)", file=sys.stderr)
-        raise SystemExit(130) from None
+        # Ctrl-C is how you stop an ambient agent, so it exits, now: not a stack
+        # trace, and not a wait either. A model call is usually in flight in a
+        # worker thread, a blocking HTTP request can't be cancelled, and the
+        # interpreter joins those threads at exit; with a 120s client timeout that
+        # is two minutes of a dead-looking terminal eating further Ctrl-Cs. So
+        # flush what we have and go. Nothing here outlives the process: percepts
+        # and episodes are written as they happen, and a half-finished glance is
+        # worth nothing anyway.
+        print("\nstopped", file=sys.stderr)
+        sys.stderr.flush()
+        sys.stdout.flush()
+        os._exit(130)
     except ModuleNotFoundError as e:
         hint = _dependency_hint(e)
         if not hint:

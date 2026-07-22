@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from saccade.schema import Frame
@@ -29,18 +30,23 @@ _DONE = object()
 
 
 class MultiSensor:
-    def __init__(self, sensors: list[Sensor]) -> None:
+    def __init__(self, sensors: list[Sensor], labels: list[str] | None = None) -> None:
         if not sensors:
             raise ValueError("MultiSensor needs at least one sensor")
         self.sensors = sensors
+        # Each frame is tagged with the input it came from, so a tick can show the
+        # model one frame per input instead of whichever arrived last. Without the
+        # tag they're indistinguishable downstream, and a fast camera simply buries
+        # a mic that speaks once a second.
+        self.labels = labels or [type(s).__name__ for s in sensors]
 
     async def stream(self) -> AsyncIterator[Frame]:
         queue: asyncio.Queue[object] = asyncio.Queue()
 
-        async def pump(sensor: Sensor) -> None:
+        async def pump(sensor: Sensor, label: str) -> None:
             try:
                 async for frame in sensor.stream():
-                    await queue.put(frame)
+                    await queue.put(replace(frame, meta={**frame.meta, "source": label}))
             except asyncio.CancelledError:
                 raise
             except Exception as e:  # noqa: BLE001 (forwarded to the consumer below)
@@ -48,7 +54,10 @@ class MultiSensor:
             finally:
                 await queue.put(_DONE)
 
-        tasks = [asyncio.create_task(pump(s)) for s in self.sensors]
+        tasks = [
+            asyncio.create_task(pump(s, lbl))
+            for s, lbl in zip(self.sensors, self.labels, strict=True)
+        ]
         live = len(tasks)
         try:
             while live:
