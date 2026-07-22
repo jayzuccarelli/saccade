@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The loop starts a stopped local Ollama instead of failing every tick with
+  `start it: ollama serve`. Setup already did this; the tick that actually needs
+  the daemon didn't. Local host only, once per process, and it says so in the log.
+
 - `setup` starts Ollama when a tier picks it and the daemon is down, instead of
   printing `ollama serve` and leaving. It only does this for a stopped server,
   and only once you've chosen it: installing Ollama and pulling a model are still
