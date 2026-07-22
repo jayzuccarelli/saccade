@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Starting a traced run sweeps old `run-*` folders, keeping the last three. The
+  per-run cap already bounded one run to ~300 ticks; this bounds the habit, since
+  a debugging afternoon is a dozen Ctrl-C-and-reruns and nobody returns to sweep
+  them. Only folders matching the trace's own naming pattern are touched.
+
 - `SACCADE_TRACE_DIR=trace` saves each glance's evidence to disk: the exact
   image bytes the model was shown (post-downscale), the transcript attached, and
   the raw reply. "Cover the lens and it still describes a man" has at least
