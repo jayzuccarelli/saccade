@@ -178,7 +178,9 @@ def test_say_routes_to_device_when_index_set(tmp_path, monkeypatch):
     """out_index >= 0 plays to that specific device, not the OS-default play_cmd."""
     spk = _stub_tts(tmp_path, play_cmd="afplay", out_index=3)
     played = {}
-    monkeypatch.setattr(_playback, "_to_device", lambda path, idx: played.update(path=path, idx=idx))
+    monkeypatch.setattr(
+        _playback, "_to_device", lambda path, idx: bool(played.update(path=path, idx=idx)) or True
+    )
     asyncio.run(spk.say("hi"))
     assert played["path"].name == "clip.wav" and played["idx"] == 3  # device playback fired
 
@@ -300,3 +302,99 @@ def test_ha_speaker_still_takes_gemini_when_asked(tmp_path):
 def test_lan_ip_is_an_address():
     ip = _lan_ip()
     assert ip.count(".") == 3 and all(p.isdigit() for p in ip.split("."))
+
+
+class _FakeSd:
+    """Just enough sounddevice to exercise the channel matching."""
+
+    def __init__(self, max_out):
+        self.max_out = max_out
+        self.played = None
+
+    def query_devices(self, idx):
+        return {"max_output_channels": self.max_out}
+
+    def play(self, data, samplerate, device):
+        self.played = data
+
+    def wait(self):
+        pass
+
+
+def _play_wav(monkeypatch, tmp_path, max_out, channels=1, frames=None):
+    # numpy lives in the `audio` extra, and the base harness is tested without it.
+    np = pytest.importorskip("numpy")
+
+    clip = tmp_path / "clip.wav"
+    pcm = np.zeros(100 * channels, dtype=np.int16) if frames is None else frames
+    with wave.open(str(clip), "wb") as w:
+        w.setnchannels(channels)
+        w.setsampwidth(2)
+        w.setframerate(22050)
+        w.writeframes(pcm.tobytes())
+    fake = _FakeSd(max_out)
+    monkeypatch.setitem(sys.modules, "sounddevice", fake)
+    ok = _playback._to_device(clip, 0)
+    return ok, fake
+
+
+def test_a_mono_clip_is_widened_to_what_the_device_takes(tmp_path, monkeypatch):
+    """Piper writes mono and plenty of CoreAudio outputs will only open a stereo
+    stream, so every utterance died with `Invalid number of channels [-9998]`:
+    the agent watched the room all day and never made a sound."""
+    ok, fake = _play_wav(monkeypatch, tmp_path, max_out=2)
+    assert ok
+    assert fake.played.shape[1] == 2
+
+
+def test_a_mono_device_gets_mono(tmp_path, monkeypatch):
+    ok, fake = _play_wav(monkeypatch, tmp_path, max_out=1)
+    assert ok
+    assert fake.played.ndim == 1 or fake.played.shape[1] == 1
+
+
+def test_an_index_that_cannot_output_falls_back(tmp_path, monkeypatch, capsys):
+    """A stale SACCADE_AUDIO_OUT_INDEX pointing at a mic shouldn't cost you every
+    spoken line; the OS default is right there."""
+    ok, _ = _play_wav(monkeypatch, tmp_path, max_out=0)
+    assert not ok
+    assert "no output" in capsys.readouterr().out
+
+
+def test_a_dead_device_index_still_reaches_play_cmd(tmp_path, monkeypatch):
+    """The fallback has to actually be taken, or the warning is just a warning."""
+    ran = []
+    monkeypatch.setattr(_playback, "_to_device", lambda path, idx: False)
+
+    async def fake_exec(*cmd, **kw):
+        ran.append(cmd)
+
+        class P:
+            async def wait(self):
+                return 0
+
+        return P()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    asyncio.run(_playback.play(tmp_path / "x.wav", "afplay", 7))
+    assert ran and ran[0][0] == "afplay"
+
+
+def test_every_channel_pair_lands_on_what_the_device_wants(tmp_path, monkeypatch):
+    """Scaling by `wants // channels` quietly didn't: 2 into 3 stayed 2, and
+    PortAudio refuses that exactly like it refused the mono stream."""
+    for channels, wants in ((1, 2), (2, 3), (6, 2), (2, 1), (1, 1)):
+        ok, fake = _play_wav(monkeypatch, tmp_path, max_out=wants, channels=channels)
+        assert ok
+        got = fake.played.shape[1] if fake.played.ndim > 1 else 1  # 1-D is mono
+        assert got == wants, f"{channels} -> {wants} gave {got}"
+
+
+def test_a_loud_downmix_does_not_wrap_around(tmp_path, monkeypatch):
+    """Averaging int16 in int16 overflows: two channels near full scale summed to
+    a negative number, so the loudest moment came out as a click."""
+    np = pytest.importorskip("numpy")
+    loud = np.full(200, 30000, dtype=np.int16)  # 100 frames, 2 channels, both hot
+    ok, fake = _play_wav(monkeypatch, tmp_path, max_out=1, channels=2, frames=loud)
+    assert ok
+    assert fake.played.min() > 0, "a positive signal came out negative"

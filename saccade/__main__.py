@@ -303,6 +303,14 @@ def cli() -> None:
     script land here. Unknown input gets usage, not the infinite loop."""
     try:
         _cli()
+    except KeyboardInterrupt:
+        # Ctrl-C is how you stop an ambient agent, so it's a normal exit, not a
+        # stack trace. The pause before it lands is a model call already in
+        # flight: a blocking HTTP request in a worker thread can't be cancelled,
+        # and the interpreter joins that thread on the way out. Saying so beats
+        # letting it look like a hang.
+        print("\nstopping (a model call may still be finishing)", file=sys.stderr)
+        raise SystemExit(130) from None
     except ModuleNotFoundError as e:
         hint = _dependency_hint(e)
         if not hint:
