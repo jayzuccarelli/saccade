@@ -21,6 +21,7 @@ import json
 import os
 import shutil
 import subprocess
+import threading
 import time
 from typing import Any
 from urllib import error, request
@@ -32,7 +33,14 @@ _LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]")
 
 # One attempt per process. A daemon that won't stay up shouldn't be respawned on
 # every glance, and the second failure is the one worth reporting.
-_start_attempted = False
+#
+# Locked, because the two tiers run concurrently and `_post` goes through
+# asyncio.to_thread: review caught that Glance and Focus failing on the same tick
+# could both pass an unguarded check and spawn a daemon each. The lock covers the
+# whole attempt, not just the flag, so the second thread waits for the first
+# server to come up instead of racing it with a second one.
+_start_lock = threading.Lock()
+_start_result: bool | None = None
 
 
 class OllamaError(RuntimeError):
@@ -57,29 +65,33 @@ def _start_daemon(host: str) -> bool:
 
     Announced, not silent. Starting a background process someone didn't ask for is
     exactly the kind of thing that has to show up in the log."""
-    global _start_attempted
-    if _start_attempted or not _is_local(host) or not shutil.which("ollama"):
+    global _start_result
+    if not _is_local(host) or not shutil.which("ollama"):
         return False
-    _start_attempted = True
-    print("[ollama] not running; starting it")
-    try:
-        subprocess.Popen(
-            ["ollama", "serve"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-    except OSError:
-        return False
-    for _ in range(20):
-        time.sleep(0.25)
+    with _start_lock:
+        if _start_result is not None:
+            return _start_result
+        _start_result = False
+        print("[ollama] not running; starting it")
         try:
-            with request.urlopen(f"{host}/api/tags", timeout=0.5):
-                print("[ollama] up")
-                return True
-        except OSError:  # URLError subclasses OSError
-            continue
-    return False
+            subprocess.Popen(
+                ["ollama", "serve"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except OSError:
+            return False
+        for _ in range(20):
+            time.sleep(0.25)
+            try:
+                with request.urlopen(f"{host}/api/tags", timeout=0.5):
+                    print("[ollama] up")
+                    _start_result = True
+                    return True
+            except OSError:  # URLError subclasses OSError
+                continue
+        return False
 
 
 class OllamaBackend:
