@@ -241,7 +241,16 @@ def _stt_choices(stt: tuple[bool, str]) -> list[Choice]:
             f"Transcribe on this machine: the audio never leaves, any model can read it ({tag})",
             {STT_VAR: "whisper"},
         ),
-        ("Send the recording to the model: only Gemini accepts audio", {STT_VAR: ""}),
+        # Names what saccade does, not what a vendor does. "only Gemini accepts
+        # audio" read as a plug and wasn't even the claim: Anthropic takes no
+        # audio at all, OpenAI takes it only through a dedicated audio model, and
+        # neither of those backends is wired for it here. What the user needs to
+        # know is that picking this narrows their model choice to one.
+        (
+            "Send the recording to the model: raw audio, and only the Gemini "
+            "backend forwards it (the others drop it)",
+            {STT_VAR: ""},
+        ),
     ]
 
 

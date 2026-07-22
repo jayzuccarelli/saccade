@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- A glance sees one frame from *each* input, not just the newest frame. With a
+  camera and a mic both running, the camera wins nearly every tick and the room
+  is effectively never heard, so `SACCADE_SENSOR=webcam,screen,mic` looked like a
+  broken mic. Frames now carry which input they came from. A single sensor is
+  unchanged.
+- Ctrl-C exits immediately instead of waiting on an in-flight model call. A
+  blocking request in a worker thread can't be cancelled and the interpreter
+  joins it at exit, so a 120s client timeout meant two minutes of a dead-looking
+  terminal swallowing further Ctrl-Cs.
+- The audio question describes what saccade does rather than naming a vendor:
+  "only Gemini accepts audio" read as a plug and wasn't the claim either.
+
 - Playback falls back to the OS player whenever the chosen device refuses the
   clip, not just when it can't do the channel count. A device that won't open at
   Piper's 22050 Hz answers `PaMacCore err='-50'`, and that was still eating every
