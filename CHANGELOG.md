@@ -11,6 +11,10 @@
   key and comment, no dropped the whole interview and printed the picks back to
   paste in by hand. Only the vars the wizard set are rewritten; the previous file
   is still copied to `.env.bak`.
+- `setup` probes the Ollama endpoint the backend will actually use
+  (`SACCADE_OLLAMA_HOST`, then `OLLAMA_HOST`, then localhost) instead of always
+  probing localhost, so an Ollama on another machine no longer reads as "not
+  running" here, and setup never starts a local daemon to fix a remote one.
 
 - The `home_assistant` speaker now synthesizes with Piper by default instead of
   Gemini TTS, so playing on a media_player no longer forces an API key. Set
