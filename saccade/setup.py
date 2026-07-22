@@ -839,10 +839,11 @@ def main() -> None:
     # needs one that can see.
     _offer_missing_models(env, needs_vision=bool(_sensor_kinds(env) - {"mic"}))
     if env.get(STT_VAR) == "whisper" and not stt[0]:
-        print(
-            "\n  Local transcription isn't installed yet:\n\n"
-            "    uv pip install -e '.[stt]'\n"
-        )
+        # Offered, like every other extra. Printing the command and moving on left
+        # the run to die on its first audio frame with a traceback, which is the
+        # homework `_offer_install` exists to stop assigning.
+        if not _offer_install("Transcribing on this machine", ".[stt]", editable=True):
+            print("  Until then the first audio frame ends the run.\n")
     if env.get("SACCADE_SPEAKER") == "piper" and not piper[0]:
         if _offer_install("Speaking out loud", "piper-tts"):
             voice = env.get("SACCADE_PIPER_VOICE", "en_US-lessac-medium")

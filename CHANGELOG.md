@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `setup` offers to install the `stt` extra instead of printing the command.
+  Picking local transcription without it left the run to die on its first audio
+  frame with a 40-line traceback ending in `No module named 'faster_whisper'`.
+  That module now maps to its extra too, so if it does happen you get the one
+  line that fixes it.
+
 - A glance sees one frame from *each* input, not just the newest frame. With a
   camera and a mic both running, the camera wins nearly every tick and the room
   is effectively never heard, so `SACCADE_SENSOR=webcam,screen,mic` looked like a
